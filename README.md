@@ -45,7 +45,7 @@ Run `make help` for every task (migrates, backups, migrations, reset).
 This repo is a **template**. To start a new project from it:
 
 ```bash
-git clone <this-repo> my-app && cd my-app
+git clone https://github.com/AndrianBalanescu/pbase.git my-app && cd my-app
 rm -rf .git && git init          # fresh history for your project
 
 cp .env.example .env             # then EDIT it — at minimum change the superuser password
