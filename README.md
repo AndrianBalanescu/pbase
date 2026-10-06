@@ -38,7 +38,7 @@ SEED_DEMO=1 ./scripts/bootstrap.sh  # install · migrate · superuser · demo se
 - API reference → <http://127.0.0.1:8090/docs/>
 - Agent guide → [`AGENTS.md`](./AGENTS.md) and [`base/pb_public/llms.txt`](./base/pb_public/llms.txt)
 
-Run `make help` for every task (migrates, backups, migrations, reset).
+Run `make help` for every task (migrate, migrate-down, new-migration, backup, reset).
 
 ## Reuse this starter
 
