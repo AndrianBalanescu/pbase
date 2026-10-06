@@ -20,7 +20,14 @@ source "$BASE/../scripts/lib/env.sh"
 _load_env_defaults .env
 
 PORT="${1:-8090}"
-HTTP="${PB_HTTP:-127.0.0.1:${PORT}}"
+# Precedence: positional port > PB_HTTP (shell env or .env) > 8090.
+# .env from .env.example pins PB_HTTP, which used to silently win over the
+# advertised `./scripts/dev.sh 8091` argument (set -u: ${1:-} not $1).
+if [[ -n "${1:-}" ]]; then
+  HTTP="127.0.0.1:${1}"
+else
+  HTTP="${PB_HTTP:-127.0.0.1:${PORT}}"
+fi
 DIR="${PB_DIR:-$BASE/pb_data}"
 
 if [[ ! -x "$BASE/pocketbase" ]]; then
