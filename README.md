@@ -31,7 +31,7 @@ SEED_DEMO=1 ./scripts/bootstrap.sh  # install · migrate · superuser · demo se
 
 > The demo seed fires **when migrations first run** — set `SEED_DEMO=1` on bootstrap. A directory
 > that was already migrated keeps its data; a later `SEED_DEMO=1 ./scripts/dev.sh` won't re-seed
-> (use `make reset` for a fresh start).
+> (fresh re-seeded start: `SEED_DEMO=1 make reset`, plus `CONFIRM=1` when non-interactive).
 
 - App / frontend → <http://127.0.0.1:8090>
 - Admin UI → <http://127.0.0.1:8090/_/>  (`admin@local.local` / `supersecretdev` — dev-only defaults; change in `.env`)
