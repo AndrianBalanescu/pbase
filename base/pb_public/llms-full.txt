@@ -78,7 +78,8 @@ baseStarter/
 ```bash
 ./scripts/bootstrap.sh          # fresh checkout → migrated + superuser (idempotent)
 ./scripts/dev.sh                # dev server on http://127.0.0.1:8090 (ensures a superuser first)
-./scripts/dev.sh 8091           # custom port (env: PB_DIR, PB_HTTP, PB_ENCRYPTION_KEY)
+./scripts/dev.sh 8091           # custom port — the argument beats PB_HTTP; without it, PB_HTTP (env
+                                # or .env) wins over the 8090 default. Also env: PB_DIR, PB_ENCRYPTION_KEY
 SEED_DEMO=1 ./scripts/bootstrap.sh # same + demo user & 3 posts (seed applies at migrate time; an
                                    # already-migrated dir stays unseeded — `SEED_DEMO=1 make reset` starts over)
 ./scripts/backup.sh             # snapshot the data dir → base/backups/<ts>.tar.gz (PB_DIR aware)
