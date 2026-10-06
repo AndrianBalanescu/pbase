@@ -79,7 +79,8 @@ baseStarter/
 ./scripts/bootstrap.sh          # fresh checkout → migrated + superuser (idempotent)
 ./scripts/dev.sh                # dev server on http://127.0.0.1:8090 (ensures a superuser first)
 ./scripts/dev.sh 8091           # custom port (env: PB_DIR, PB_HTTP, PB_ENCRYPTION_KEY)
-SEED_DEMO=1 ./scripts/dev.sh    # + demo user & 3 posts (only if posts is empty)
+SEED_DEMO=1 ./scripts/bootstrap.sh # same + demo user & 3 posts (seed applies at migrate time; an
+                                   # already-migrated dir stays unseeded — use `make reset` to start over)
 ./scripts/backup.sh             # snapshot the data dir → base/backups/<ts>.tar.gz (PB_DIR aware)
 ./scripts/install-pocketbase.sh # (re)install the pinned binary
 ```

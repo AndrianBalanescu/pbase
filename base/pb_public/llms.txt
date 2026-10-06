@@ -9,7 +9,7 @@ This file follows the [llms.txt](https://llmstxt.org) convention: concise, link-
 - `./scripts/bootstrap.sh` — install binary, migrate, create superuser (idempotent)
 - `./scripts/dev.sh` — dev server on `http://127.0.0.1:8090` with SQL logging + hook hot-reload
 - `make help` — every task (migrate, new-migration, backup, reset)
-- `SEED_DEMO=1 ./scripts/dev.sh` — insert a demo user + 3 posts
+- `SEED_DEMO=1 ./scripts/bootstrap.sh` — seed a demo user + 3 posts (fires when migrations first run)
 
 ## Agent entry points (read in this order)
 

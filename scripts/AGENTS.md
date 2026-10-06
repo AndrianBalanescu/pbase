@@ -6,7 +6,7 @@ Operational scripts. Bash for ops.
 install-pocketbase.sh   download the pinned PocketBase binary (version from ../base/pocketbase.version)
 bootstrap.sh            install + migrate + create dev superuser (idempotent)
 dev.sh                  run the dev server (--dev: SQL log + hook hot-reload); ensures a
-                        superuser before serving; SEED_DEMO=1 seeds demo data
+                        superuser before serving (demo seed needs SEED_DEMO=1 at migrate time)
 backup.sh               consistent sqlite snapshot of the data dir (PB_DIR) → base/backups/
 lib/env.sh              shared `.env` loader (sourced by bootstrap.sh & dev.sh)
 lib/ensure-superuser.sh shared idempotent superuser upsert (sourced by bootstrap.sh & dev.sh)

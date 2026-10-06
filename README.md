@@ -25,9 +25,13 @@ PocketBase **v0.40.4** · no Node, no bundler, no Docker.
 ## Quickstart
 
 ```bash
-./scripts/bootstrap.sh         # install binary · migrate · create superuser
-SEED_DEMO=1 ./scripts/dev.sh   # dev server + demo user & 3 posts
+SEED_DEMO=1 ./scripts/bootstrap.sh  # install · migrate · superuser · demo seed (3 posts)
+./scripts/dev.sh                    # dev server on http://127.0.0.1:8090
 ```
+
+> The demo seed fires **when migrations first run** — set `SEED_DEMO=1` on bootstrap. A directory
+> that was already migrated keeps its data; a later `SEED_DEMO=1 ./scripts/dev.sh` won't re-seed
+> (use `make reset` for a fresh start).
 
 - App / frontend → <http://127.0.0.1:8090>
 - Admin UI → <http://127.0.0.1:8090/_/>  (`admin@local.local` / `supersecretdev` — dev-only defaults; change in `.env`)
@@ -91,7 +95,7 @@ Ad-hoc (no `.env` edit): `make superuser email=me@my.app pass='a-strong-password
 | **Schema as code** | `base/pb_migrations/` — reversible JS migrations for `users`, `posts`, `comments`. |
 | **Server logic** | `base/pb_hooks/` — record guards, cron, webhooks, and custom routes defined in `lib/api.js` (`/api/stats`, `/api/activity`, `/api/me`, `/api/schema`). |
 | **Zero-build UI** | `base/pb_public/` — the **ohno** UI kit + Vue 3 global build + PocketBase SDK, all vendored; edit and refresh. Sidebar shell, dashboard, live posts table, schema inspector, ⌘K palette. |
-| **Seeded demo** | `SEED_DEMO=1` creates a user and posts (idempotent). |
+| **Seeded demo** | `SEED_DEMO=1` at migrate time (bootstrap) creates a demo user + 3 posts. |
 | **Agent-native** | `AGENTS.md`, nested guides, `.agents/skills/*`, `llms.txt` + `llms-full.txt`, **live** OpenAPI 3.1 (generated from the DB + route table, rendered by Scalar). |
 | **Ops scripts** | install · bootstrap · dev · backup. `dev.sh` ensures a superuser before every start, so the install screen never reappears on restart. |
 | **Pinned runtime** | `base/pocketbase.version` is the single source of truth; `scripts/install-pocketbase.sh` fetches it. |

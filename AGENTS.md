@@ -14,9 +14,9 @@ REQUIRED: read the relevant file in `.agents/reference/` before developing or de
 1. `./scripts/bootstrap.sh` — installs the pinned binary, applies migrations, creates a
    dev superuser. Idempotent; safe to re-run.
 2. `./scripts/dev.sh` — dev server on `http://127.0.0.1:8090` (`--dev`: SQL logging + hook
-   hot-reload). `SEED_DEMO=1 ./scripts/dev.sh` also inserts a demo user and 3 posts. It
-   ensures a superuser exists **before** serving (idempotent upsert from `.env`), so the
-   "Create your first superuser" install screen never comes back on restart (trap 30).
+   hot-reload). It ensures a superuser exists **before** serving (idempotent upsert from `.env`), so the
+   "Create your first superuser" install screen never comes back on restart (trap 30). For demo data,
+   run `SEED_DEMO=1 ./scripts/bootstrap.sh` — the seed fires when migrations first run.
 3. `make help` — every common task.
 4. **Read `.agents/reference/TOP-20-APIs.md` first** — the ranked cheat sheet of PocketBase's
    native surface and the *built-in vs custom code* rule. Most "let me write a route/helper"

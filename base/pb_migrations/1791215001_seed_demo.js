@@ -2,7 +2,7 @@
 //
 // Seed demo content — but ONLY when SEED_DEMO=1.
 //
-//     SEED_DEMO=1 ./scripts/bootstrap.sh      # or ./scripts/dev.sh
+//     SEED_DEMO=1 ./scripts/bootstrap.sh   # or the FIRST serve on a not-yet-migrated dir
 //
 // WHY A MIGRATION AND NOT A HOOK
 //   Migrations are the one place that is guaranteed to run AFTER the schema exists and
