@@ -1,0 +1,2216 @@
+/* ==========================================================================
+   ohno · components.css  (v4)
+   Modern, compact, Raycast-inspired component library.
+   Clean 13px base, subtle borders, native overlays, zero bloat.
+
+   v4 ARCHITECTURE
+   · Everything lives in @layer components (tokens/base always win).
+   · Modals + palette = native <dialog>.showModal() (top layer, ::backdrop).
+   · Popovers = native [popover=auto] (light-dismiss + Esc for free).
+   · Open/close = @starting-style + transition-behavior: allow-discrete.
+   · Dropdowns & selects stay absolute-positioned (in-flow, small panels).
+   · Responsive app shell < 768px: sidebar becomes a slide-in drawer.
+
+   JS hooks (ohno.js): .is-open (dropdowns/selects), [data-*]
+   triggers, OHNO.openModal/closeModal (native dialog wrappers).
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   REGISTERED CUSTOM PROPERTIES
+   Registration can't live inside @layer (invalid), so it sits above it.
+   --o-sheen-angle is interpolated by @keyframes sheen-sweep to spin
+   the bright point of the loading button's conic-gradient border sweep.
+   -------------------------------------------------------------------------- */
+@property --o-sheen-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@layer components {
+
+/* --------------------------------------------------------------------------
+   1. BUTTONS (.btn, button:not([class]), button.btn)
+   Semantic-first: any bare <button> gets ohno styling automatically.
+   Classes are only needed for variants (.btn-primary, .btn-subtle, etc.).
+   -------------------------------------------------------------------------- */
+.btn,
+button:not([class]) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--o-s2);
+  height: var(--o-h-md);
+  padding: 0 var(--o-s3);
+  font-size: var(--o-fs-md);
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  border-radius: var(--o-r-sm);
+  border: var(--o-bw, 1px) solid var(--o-border);
+  background: var(--o-surface);
+  color: var(--o-text);
+  box-shadow: var(--o-shadow-sm);
+  transition: background var(--o-speed) var(--o-ease),
+              border-color var(--o-speed) var(--o-ease),
+              transform var(--o-speed) var(--o-ease);
+  user-select: none;
+  cursor: pointer;
+  position: relative;   /* anchor for .is-loading ::before/::after layers */
+}
+.btn:hover,
+button:not([class]):hover {
+  background: var(--o-surface-2);
+  border-color: var(--o-border-2);
+}
+.btn:active,
+button:not([class]):active {
+  transform: translateY(1px);
+  background: var(--o-surface-3);
+}
+.btn:disabled,
+button:not([class]):disabled,
+.btn[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Variants */
+.btn-primary {
+  background: var(--o-accent);
+  border-color: transparent;
+  color: var(--o-on-accent);
+}
+.btn-primary:hover {
+  background: var(--o-accent-hover);
+  border-color: transparent;
+}
+.btn-primary:active {
+  background: var(--o-accent-active);
+}
+
+.btn-subtle {
+  background: var(--o-surface-2);
+  border-color: transparent;
+  box-shadow: none;
+}
+.btn-subtle:hover { background: var(--o-surface-3); }
+
+.btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  color: var(--o-text-2);
+}
+.btn-ghost:hover {
+  background: var(--o-surface-2);
+  color: var(--o-text);
+}
+
+.btn-danger {
+  background: var(--o-red-soft);
+  border-color: rgba(212, 122, 122, 0.25);
+  color: var(--o-red-text);
+}
+.btn-danger:hover {
+  background: rgba(212, 122, 122, 0.22);
+  border-color: rgba(212, 122, 122, 0.4);
+}
+
+/* Sizes */
+.btn-sm {
+  height: var(--o-h-sm);
+  padding: 0 var(--o-s2);
+  font-size: var(--o-fs-sm);
+  gap: var(--o-s1);
+}
+.btn-lg {
+  height: var(--o-h-lg);
+  padding: 0 var(--o-s4);
+  font-size: var(--o-fs-lg);
+  gap: var(--o-s2);
+}
+.btn-icon {
+  width: var(--o-h-md);
+  padding: 0;
+}
+.btn-icon.btn-sm { width: var(--o-h-sm); }
+.btn-icon.btn-lg { width: var(--o-h-lg); }
+
+/* Button Group */
+.btn-group {
+  display: inline-flex;
+  align-items: center;
+}
+.btn-group .btn {
+  border-radius: 0;
+  margin-left: -1px;
+}
+.btn-group .btn:first-child {
+  border-top-left-radius: var(--o-r-sm);
+  border-bottom-left-radius: var(--o-r-sm);
+  margin-left: 0;
+}
+.btn-group .btn:last-child {
+  border-top-right-radius: var(--o-r-sm);
+  border-bottom-right-radius: var(--o-r-sm);
+}
+.btn-group .btn:focus-visible {
+  position: relative;
+  z-index: 1;
+}
+
+/* --------------------------------------------------------------------------
+   1b. LOADING BUTTON (.is-loading)
+   Pure CSS. The label STAYS VISIBLE — for long tasks the user must still
+   know what is loading. Three layers:
+   · ::before = arc spinner rendered as an INLINE flex item (the button is
+     already display:flex with gap), so it sits just left of the label.
+     The button grows by spinner + gap — standard pattern (shadcn/Ant).
+   · the whole button dims slightly (opacity .85, overrides the :disabled
+     dimming) and ignores clicks (pointer-events + cursor: progress).
+   · ::after = "troposcope" — conic light sweep traveling the border ring
+     (masked to the 1px border box). The bright point rotates by animating
+     the registered custom property (see top of file). Falls back to a
+     static full ring in engines without @property.
+   Icon buttons have no room for two items: hide the glyph, center the
+   spinner over it (absolute) — old centered behavior.
+   JS: OHNO.loading(el, bool) toggles .is-loading + aria-busy.
+   -------------------------------------------------------------------------- */
+.btn.is-loading,
+.btn:disabled.is-loading {
+  opacity: 0.85;               /* keep text readable; overrides .btn:disabled .45 */
+  pointer-events: none;
+  cursor: progress;
+}
+.btn.is-loading::before {
+  content: "";
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;              /* inline flex item → sits beside the label */
+  border-radius: 50%;
+  border: 2px solid var(--o-border-2);
+  border-top-color: var(--o-accent);
+  animation: spin-ring 0.7s linear infinite;
+}
+@keyframes spin-ring {
+  to { transform: rotate(1turn); }
+}
+/* primary fill is accent → spinner arc needs on-accent to be visible */
+.btn-primary.is-loading::before {
+  border-color: color-mix(in oklab, var(--o-on-accent) 35%, transparent);
+  border-top-color: var(--o-on-accent);
+}
+/* icon buttons: only the spinner fits — hide the glyph, center the ring */
+.btn-icon.is-loading {
+  color: transparent !important;
+}
+.btn-icon.is-loading::before {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+}
+.btn.is-loading::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  background: conic-gradient(
+    from var(--o-sheen-angle),
+    transparent 0deg 270deg,
+    var(--o-accent) 330deg,
+    var(--o-accent) 360deg
+  );
+  animation: sheen-sweep 1.2s linear infinite;
+}
+@keyframes sheen-sweep {
+  to { --o-sheen-angle: 360deg; }
+}
+/* primary: sheen in on-accent so it reads against the accent fill */
+.btn-primary.is-loading::after {
+  background: conic-gradient(
+    from var(--o-sheen-angle),
+    transparent 0deg 270deg,
+    var(--o-on-accent) 330deg,
+    var(--o-on-accent) 360deg
+  );
+}
+/* danger: keep its own hue so the sheen doesn't clash */
+.btn-danger.is-loading::after {
+  background: conic-gradient(
+    from var(--o-sheen-angle),
+    transparent 0deg 270deg,
+    var(--o-red) 330deg,
+    var(--o-red) 360deg
+  );
+}
+
+/* --------------------------------------------------------------------------
+   2. FORM CONTROLS (.input, .textarea, select, .select-native)
+   -------------------------------------------------------------------------- */
+.input,
+.textarea,
+:is(input:not([type]), input[type="text"], input[type="email"], input[type="password"], input[type="search"], input[type="url"], input[type="tel"], input[type="number"], textarea):not([class]) {
+  width: 100%;
+  height: var(--o-h-md);
+  padding: 0 var(--o-s3);
+  font-size: var(--o-fs-md);
+  background: var(--o-surface);
+  color: var(--o-text);
+  border: var(--o-bw, 1px) solid var(--o-border);
+  border-radius: var(--o-r-sm);
+  transition: border-color var(--o-speed) var(--o-ease),
+              box-shadow var(--o-speed) var(--o-ease),
+              background var(--o-speed) var(--o-ease);
+}
+
+/* ═══════════ PURE CLASSLESS & CLASSED NATIVE <select> ═══════════ */
+select,
+select.input,
+.select-native {
+  width: 100%;
+  height: var(--o-h-md);
+  padding: 0 32px 0 var(--o-s3);
+  font-size: var(--o-fs-md);
+  font-family: inherit;
+  background-color: var(--o-surface);
+  color: var(--o-text);
+  border: var(--o-bw, 1px) solid var(--o-border);
+  border-radius: var(--o-r-sm);
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  appearance: none !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23888899' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 10px center !important;
+  background-size: 14px 14px !important;
+  cursor: pointer;
+  line-height: normal;
+  transition: border-color var(--o-speed) var(--o-ease),
+              box-shadow var(--o-speed) var(--o-ease),
+              background-color var(--o-speed) var(--o-ease);
+}
+
+select:hover,
+select.input:hover,
+.select-native:hover {
+  border-color: var(--o-border-2);
+  background-color: var(--o-surface-2);
+}
+
+select:focus,
+select.input:focus,
+.select-native:focus {
+  outline: none;
+  border-color: var(--o-accent);
+  box-shadow: 0 0 0 1px var(--o-accent);
+  background-color: var(--o-surface-2);
+}
+
+select:disabled,
+select.input:disabled,
+.select-native:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+select option,
+select optgroup {
+  background-color: var(--o-surface-1, #16161a) !important;
+  color: var(--o-text) !important;
+  padding: 8px 12px;
+}
+.input:hover,
+.textarea:hover,
+:is(input:not([type]), input[type="text"], input[type="email"], input[type="password"], input[type="search"], input[type="url"], input[type="tel"], input[type="number"], textarea):not([class]):hover {
+  border-color: var(--o-border-2);
+}
+.input:focus,
+.textarea:focus,
+:is(input:not([type]), input[type="text"], input[type="email"], input[type="password"], input[type="search"], input[type="url"], input[type="tel"], input[type="number"], textarea):not([class]):focus {
+  border-color: var(--o-accent);
+  box-shadow: 0 0 0 1px var(--o-accent);
+  background: var(--o-surface-2);
+}
+.input::placeholder,
+.textarea::placeholder,
+:is(input:not([type]), input[type="text"], input[type="email"], input[type="password"], input[type="search"], input[type="url"], input[type="tel"], input[type="number"], textarea):not([class])::placeholder {
+  color: var(--o-text-3);
+}
+.input:disabled,
+.textarea:disabled,
+:is(input:not([type]), input[type="text"], input[type="email"], input[type="password"], input[type="search"], input[type="url"], input[type="tel"], input[type="number"], textarea):not([class]):disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.textarea,
+textarea:not([class]) {
+  height: auto;
+  min-height: 80px;
+  padding: var(--o-s2) var(--o-s3);
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.input-sm { height: var(--o-h-sm); font-size: var(--o-fs-sm); padding: 0 var(--o-s2); }
+.input-lg { height: var(--o-h-lg); font-size: var(--o-fs-lg); padding: 0 var(--o-s4); }
+
+/* Select / Native Dropdown styling */
+.select,
+select,
+select:not([class]) {
+  width: 100%;
+  height: var(--o-h-md);
+  padding: 0 32px 0 var(--o-s3);
+  font-size: var(--o-fs-md);
+  font-family: inherit;
+  background-color: var(--o-surface);
+  color: var(--o-text);
+  border: var(--o-bw, 1px) solid var(--o-border);
+  border-radius: var(--o-r-sm);
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 14px 14px;
+  cursor: pointer;
+  line-height: normal;
+  transition: border-color var(--o-speed) var(--o-ease),
+              box-shadow var(--o-speed) var(--o-ease),
+              background-color var(--o-speed) var(--o-ease);
+}
+
+.select:hover,
+select:hover,
+select:not([class]):hover {
+  border-color: var(--o-border-2);
+  background-color: var(--o-surface-2);
+}
+
+.select:focus,
+select:focus,
+select:not([class]):focus {
+  outline: none;
+  border-color: var(--o-accent);
+  box-shadow: 0 0 0 1px var(--o-accent);
+  background-color: var(--o-surface-2);
+}
+
+.select:disabled,
+select:disabled,
+select:not([class]):disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.select-sm, select.input-sm {
+  height: var(--o-h-sm);
+  font-size: var(--o-fs-sm);
+  padding: 0 26px 0 var(--o-s2);
+  background-position: right 6px center;
+  background-size: 12px 12px;
+}
+
+.select-lg, select.input-lg {
+  height: var(--o-h-lg);
+  font-size: var(--o-fs-lg);
+  padding: 0 38px 0 var(--o-s4);
+  background-position: right 12px center;
+  background-size: 16px 16px;
+}
+
+select option,
+select optgroup {
+  background-color: var(--o-surface-2, #1c1c22);
+  color: var(--o-text);
+  padding: 8px 12px;
+}
+
+/* --------------------------------------------------------------------------
+   2b. CHECKBOX, RADIO, SWITCH, RANGE
+   -------------------------------------------------------------------------- */
+
+/* Checkbox & Radio */
+:is(input[type="checkbox"]:not([role="switch"]):not(.switch), input[type="radio"]):not([class]),
+.checkbox,
+.radio {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  display: inline-grid;
+  place-content: center;
+  border: var(--o-bw, 1px) solid var(--o-border);
+  border-radius: var(--o-r-sm, 4px);
+  background: var(--o-surface);
+  cursor: pointer;
+  vertical-align: middle;
+  transition: all var(--o-dur-quick-2, 0.15s) var(--o-ease);
+}
+
+:is(input[type="radio"]):not([class]),
+.radio {
+  border-radius: var(--o-r-full, 9999px);
+}
+
+:is(input[type="checkbox"]:not([role="switch"]):not(.switch), input[type="radio"]):not([class]):hover,
+.checkbox:hover,
+.radio:hover {
+  border-color: var(--o-border-2);
+  background: var(--o-surface-2);
+}
+
+:is(input[type="checkbox"]:not([role="switch"]):not(.switch), input[type="radio"]):not([class]):focus-visible,
+.checkbox:focus-visible,
+.radio:focus-visible {
+  outline: 2px solid var(--o-accent);
+  outline-offset: 2px;
+}
+
+:is(input[type="checkbox"]:not([role="switch"]):not(.switch), input[type="radio"]):not([class]):checked,
+.checkbox:checked,
+.radio:checked {
+  background: var(--o-accent);
+  border-color: var(--o-accent);
+}
+
+:is(input[type="checkbox"]:not([role="switch"]):not(.switch)):not([class]):checked::before,
+.checkbox:checked::before {
+  content: "";
+  width: 8px;
+  height: 5px;
+  border-left: 2px solid var(--o-on-accent, #ffffff);
+  border-bottom: 2px solid var(--o-on-accent, #ffffff);
+  transform: rotate(-45deg) translate(0.5px, -0.5px);
+}
+
+:is(input[type="radio"]):not([class]):checked::before,
+.radio:checked::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: var(--o-r-full, 9999px);
+  background: var(--o-on-accent, #ffffff);
+}
+
+:is(input[type="checkbox"], input[type="radio"]):disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Switch Toggle */
+:is(input[type="checkbox"][role="switch"], input[type="checkbox"].switch),
+.switch {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  width: 36px;
+  height: 20px;
+  margin: 0;
+  border-radius: var(--o-r-full, 9999px);
+  background: var(--o-surface-3, #3f3f46);
+  border: var(--o-bw, 1px) solid var(--o-border);
+  cursor: pointer;
+  position: relative;
+  vertical-align: middle;
+  transition: background-color var(--o-dur-quick-2, 0.2s) var(--o-ease),
+              border-color var(--o-dur-quick-2, 0.2s) var(--o-ease);
+}
+
+:is(input[type="checkbox"][role="switch"], input[type="checkbox"].switch)::after,
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--o-r-full, 9999px);
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  transition: transform var(--o-dur-quick-2, 0.2s) cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+:is(input[type="checkbox"][role="switch"], input[type="checkbox"].switch):checked,
+.switch:checked {
+  background: var(--o-accent);
+  border-color: var(--o-accent);
+}
+
+:is(input[type="checkbox"][role="switch"], input[type="checkbox"].switch):checked::after,
+.switch:checked::after {
+  transform: translateX(16px);
+}
+
+:is(input[type="checkbox"][role="switch"], input[type="checkbox"].switch):focus-visible,
+.switch:focus-visible {
+  outline: 2px solid var(--o-accent);
+  outline-offset: 2px;
+}
+
+:is(input[type="checkbox"][role="switch"], input[type="checkbox"].switch):disabled,
+.switch:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Range Slider */
+input[type="range"]:not([class]),
+.range {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  background: var(--o-surface-3, #27272a);
+  border-radius: var(--o-r-full, 9999px);
+  outline: none;
+  margin: 8px 0;
+  cursor: pointer;
+}
+
+input[type="range"]:not([class])::-webkit-slider-thumb,
+.range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--o-r-full, 9999px);
+  background: var(--o-accent);
+  border: 2px solid var(--o-surface-1, var(--o-bg));
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  transition: transform 0.15s ease, background-color 0.15s ease;
+}
+
+input[type="range"]:not([class])::-webkit-slider-thumb:hover,
+.range::-webkit-slider-thumb:hover {
+  transform: scale(1.18);
+}
+
+input[type="range"]:not([class])::-moz-range-track,
+.range::-moz-range-track {
+  height: 6px;
+  background: var(--o-surface-3, #27272a);
+  border-radius: var(--o-r-full, 9999px);
+  border: none;
+}
+
+input[type="range"]:not([class])::-moz-range-thumb,
+.range::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: var(--o-r-full, 9999px);
+  background: var(--o-accent);
+  border: 2px solid var(--o-surface-1, var(--o-bg));
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  transition: transform 0.15s ease, background-color 0.15s ease;
+}
+
+input[type="range"]:not([class])::-moz-range-thumb:hover,
+.range::-moz-range-thumb:hover {
+  transform: scale(1.18);
+}
+
+/* Input with icon wrapper */
+.input-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+.input-box .icon-left,
+.input-box .icon-right {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--o-text-3);
+  pointer-events: none;
+  font-size: 14px;
+}
+.input-box .icon-left  { left: 10px; }
+.input-box .icon-right { right: 10px; }
+.input-box:has(.icon-left)  .input { padding-left: 32px; }
+.input-box:has(.icon-right) .input { padding-right: 32px; }
+
+/* Clear button inside input */
+.input-clear {
+  position: absolute;
+  right: 8px;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--o-r-full);
+  color: var(--o-text-3);
+  background: var(--o-surface-3);
+  font-size: 11px;
+  cursor: pointer;
+}
+.input-clear:hover { color: var(--o-text); }
+
+/* Form field helper / label */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+.label {
+  font-size: var(--o-fs-sm);
+  font-weight: 500;
+  color: var(--o-text-2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.hint {
+  font-size: var(--o-fs-xs);
+  color: var(--o-text-3);
+}
+.error {
+  font-size: var(--o-fs-xs);
+  color: var(--o-red-text);
+}
+
+/* --------------------------------------------------------------------------
+   3. CHECKBOX · RADIO · SWITCH (custom, input first for :checked + track)
+   -------------------------------------------------------------------------- */
+.check,
+.radio {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--o-s2);
+  cursor: pointer;
+  font-size: var(--o-fs-md);
+  color: var(--o-text);
+  user-select: none;
+}
+.check input,
+.radio input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.check-box,
+.radio-dot {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--o-surface);
+  border: 1px solid var(--o-border-2);
+  transition: background var(--o-speed) var(--o-ease),
+              border-color var(--o-speed) var(--o-ease);
+}
+.check-box { border-radius: 4px; }
+.radio-dot { border-radius: var(--o-r-full); }
+.check input:checked + .check-box {
+  background: var(--o-accent);
+  border-color: var(--o-accent);
+  color: var(--o-on-accent);
+}
+.check input:checked + .check-box::after {
+  content: "✓";
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+.radio input:checked + .radio-dot {
+  border-color: var(--o-accent);
+}
+.radio input:checked + .radio-dot::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: var(--o-r-full);
+  background: var(--o-accent);
+}
+.check input:focus-visible + .check-box,
+.radio input:focus-visible + .radio-dot {
+  box-shadow: var(--o-ring);
+}
+.check input:disabled + .check-box,
+.radio input:disabled + .radio-dot {
+  opacity: 0.45;
+}
+
+/* Switch */
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--o-s2);
+  cursor: pointer;
+  font-size: var(--o-fs-md);
+  color: var(--o-text);
+  user-select: none;
+}
+.switch input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.switch-track {
+  width: 34px;
+  height: 20px;
+  background: var(--o-surface-3);
+  border: var(--o-bw, 1px) solid var(--o-border);
+  border-radius: var(--o-r-full);
+  transition: background var(--o-speed) var(--o-ease),
+              border-color var(--o-speed) var(--o-ease);
+  position: relative;
+}
+.switch-track::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  background: var(--o-knob);
+  border-radius: var(--o-r-full);
+  box-shadow: var(--o-shadow-sm);
+  transition: transform var(--o-speed) var(--o-ease);
+}
+.switch input:checked + .switch-track {
+  background: var(--o-accent);
+  border-color: var(--o-accent);
+}
+.switch input:checked + .switch-track::after {
+  transform: translateX(14px);
+}
+.switch input:focus-visible + .switch-track {
+  box-shadow: var(--o-ring);
+}
+
+/* --------------------------------------------------------------------------
+   4. DROPDOWN (.dropdown + .menu)
+   Small in-flow panel — stays absolute (top layer reserved for real overlays).
+   -------------------------------------------------------------------------- */
+.dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 180px;
+  max-width: 320px;
+  padding: 4px;
+  background: var(--o-surface);
+  border: var(--o-bw, 1px) solid var(--o-border);
+  border-radius: var(--o-r-md);
+  box-shadow: var(--o-shadow-lg);
+  z-index: 100;
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+  animation: menu-in var(--o-dur-quick-2) var(--o-ease);
+}
+.dropdown.is-open > .menu,
+.menu.is-open {
+  display: flex;
+}
+.menu-right { left: auto; right: 0; }
+
+@keyframes menu-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--o-s2);
+  padding: 6px 8px;
+  font-size: var(--o-fs-md);
+  border-radius: var(--o-r-sm);
+  color: var(--o-text);
+  cursor: pointer;
+  user-select: none;
+  text-decoration: none;
+  transition: background var(--o-speed) var(--o-ease);
+}
+.menu-item:hover,
+.menu-item.is-active,
+.menu-item:focus-visible {
+  background: var(--o-surface-2);
+}
+.menu-item.is-selected {
+  background: var(--o-accent-soft);
+  color: var(--o-accent);
+}
+.menu-item.is-disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+.menu-item .kbd { margin-left: auto; }
+
+.menu-header {
+  padding: 6px 8px 2px;
+  font-size: var(--o-fs-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--o-text-3);
+}
+.menu-divider {
+  height: 1px;
+  margin: 4px -4px;
+  background: var(--o-border);
+}
+
+/* --------------------------------------------------------------------------
+   4b. SELECT — one component, two modes (upgrade of native <select>)
+   Single: <select data-select>   Multi: + data-multiple (chips + search)
+   JS (ohno.js) hides the native select and builds the custom UI.
+   -------------------------------------------------------------------------- */
+.select {
+  position: relative;
+  width: 100%;
+  font-family: inherit;
+}
+.select-trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--o-s2);
+  width: 100%;
+  min-height: var(--o-h-md);
+  padding: 3px 28px 3px 10px;
+  font-size: var(--o-fs-md);
+  text-align: left;
+  background: var(--o-surface);
+  color: var(--o-text);
+  border: var(--o-bw, 1px) solid var(--o-border);
+  border-radius: var(--o-r-sm);
+  cursor: pointer;
+  transition: border-color var(--o-dur-quick-2) var(--o-ease),
+              box-shadow var(--o-dur-quick-2) var(--o-ease),
+              background var(--o-dur-quick-2) var(--o-ease);
+}
+.select-trigger:hover { border-color: var(--o-border-2); background: var(--o-surface-2); }
+.select.is-open .select-trigger,
+.select-trigger:focus-visible {
+  border-color: var(--o-accent);
+  box-shadow: 0 0 0 1px var(--o-accent);
+  background: var(--o-surface-2);
+  outline: none;
+}
+.select-trigger:disabled,
+.select.is-disabled .select-trigger {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+/* chevron */
+.select-trigger::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  width: 10px;
+  height: 6px;
+  transform: translateY(-50%);
+  background: var(--o-chevron) center / 10px 6px no-repeat;
+  transition: transform var(--o-dur-quick-2) var(--o-ease);
+  pointer-events: none;
+}
+.select.is-open .select-trigger::after { transform: translateY(-50%) rotate(180deg); }
+.select-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--o-text);
+}
+.select-label.is-placeholder,
+.select.is-placeholder .select-label { color: var(--o-text-3); }
+
+.select-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 120;
+  background: var(--o-surface);
+  border: 1px solid var(--o-border-2);
+  border-radius: var(--o-r-md);
+  box-shadow: var(--o-shadow-lg);
+  padding: 4px;
+  display: none;
+  animation: menu-in var(--o-dur-moderate-1) var(--o-ease);
+}
+.select.is-open .select-panel { display: block; }
+/* Drop-up modifier (set by openPanel when space below is clipped) */
+.select--up .select-panel {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
+.select-search {
+  width: 100%;
+  height: 30px;
+  margin-bottom: 4px;
+  padding: 0 8px;
+  font-size: var(--o-fs-md);
+  background: var(--o-surface-2);
+  color: var(--o-text);
+  border: var(--o-bw, 1px) solid var(--o-border);
+  border-radius: var(--o-r-sm);
+}
+.select-search:focus { border-color: var(--o-accent); outline: none; }
+.select-search[hidden] { display: none; }
+/* ~6 visible rows + gap, scales with density (regular ≈ 236px) */
+.select-list { max-height: calc(var(--o-h-lg) * 6 + var(--o-s2)); overflow-y: auto; overscroll-behavior: contain; }
+.select-option {
+  display: flex;
+  align-items: center;
+  gap: var(--o-s2);
+  padding: 6px 8px;
+  font-size: var(--o-fs-md);
+  border-radius: var(--o-r-sm);
+  color: var(--o-text);
+  cursor: pointer;
+  user-select: none;
+  transition: background var(--o-dur-quick-1) var(--o-ease);
+}
+.select-option:hover,
+.select-option.is-active { background: var(--o-surface-2); }
+.select-option.is-selected {
+  background: var(--o-accent-soft);
+  color: var(--o-accent);
+}
+.select-option.is-selected::after {
+  content: "✓";
+  margin-left: auto;
+  font-size: var(--o-fs-sm);
+}
+.select-option.is-disabled { opacity: 0.45; pointer-events: none; }
+.select-empty {
+  padding: 10px 8px;
+  font-size: var(--o-fs-md);
+  color: var(--o-text-3);
+  text-align: center;
+}
+
+/* Chips — used by multi-select mode (and standalone tag lists) */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  padding: 0 4px 0 8px;
+  background: var(--o-surface-3);
+  color: var(--o-text);
+  border: var(--o-bw, 1px) solid var(--o-border);
+  border-radius: var(--o-r-sm);
+  font-size: var(--o-fs-xs);
+  line-height: 1;
+  white-space: nowrap;
+}
+.chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-right: -2px;
+  border-radius: 3px;
+  color: var(--o-text-3);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background var(--o-dur-quick-1) var(--o-ease),
+              color var(--o-dur-quick-1) var(--o-ease);
+}
+.chip-remove:hover {
+  background: var(--o-red-soft);
+  color: var(--o-red-text);
+}
+
+/* --------------------------------------------------------------------------
+   5. MODAL & DIALOG — native <dialog>.showModal()
+   Markup:  <dialog class="modal">  /  <dialog class="modal dialog">
+   Classless: bare <dialog> gets the same modal look (dialog:not([class])).
+   Open:    showModal()  ·  Close: close(), backdrop click, [data-modal-close]
+   Top layer guarantees stacking; ::backdrop replaces the old backdrop div.
+   Animations: @starting-style (in) + transition-behavior (out).
+   -------------------------------------------------------------------------- */
+dialog.modal,
+dialog:not([class]) {
+  display: none;              /* closed state (UA default is display:block) */
+  flex-direction: column;
+  width: calc(100vw - 2 * var(--o-s5));
+  max-width: 520px;
+  max-height: calc(100vh - 2 * var(--o-s5));
+  margin: auto;
+  padding: 0;
+  color: var(--o-text);
+  background: var(--o-surface);
+  border: 1px solid var(--o-border-2);
+  border-radius: var(--o-r-lg);
+  box-shadow: var(--o-shadow-lg);
+  overflow: hidden;
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  transition: opacity var(--o-dur-moderate-1) var(--o-ease),
+              transform var(--o-dur-moderate-1) var(--o-ease),
+              overlay var(--o-dur-moderate-1) allow-discrete,
+              display var(--o-dur-moderate-1) allow-discrete;
+}
+dialog.modal[open],
+dialog:not([class])[open] {
+  display: flex;
+}
+
+@starting-style {
+  dialog.modal[open],
+  dialog:not([class])[open] {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
+}
+/* closing transition: allow "display" to linger while we fade out */
+dialog.modal[open].is-closing,
+dialog.modal.is-closing,
+dialog:not([class]).is-closing {
+  opacity: 0;
+  transform: translateY(8px) scale(0.97);
+  transition: opacity var(--o-dur-moderate-1) var(--o-ease),
+              transform var(--o-dur-moderate-1) var(--o-ease),
+              overlay var(--o-dur-moderate-1) allow-discrete,
+              display var(--o-dur-moderate-1) allow-discrete;
+}
+
+dialog.modal::backdrop,
+dialog:not([class])::backdrop {
+  background: var(--o-backdrop);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  opacity: 1;
+  transition: opacity var(--o-dur-moderate-1) var(--o-ease),
+              overlay var(--o-dur-moderate-1) allow-discrete,
+              display var(--o-dur-moderate-1) allow-discrete;
+}
+@starting-style {
+  dialog.modal[open]::backdrop,
+  dialog:not([class])[open]::backdrop { opacity: 0; }
+}
+dialog.modal.is-closing::backdrop,
+dialog:not([class]).is-closing::backdrop { opacity: 0; }
+
+/* Header / body / footer (kept identical to v3) */
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--o-s4) var(--o-s5);
+  border-bottom: 1px solid var(--o-border);
+}
+.modal-title {
+  font-size: var(--o-fs-lg);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.modal-body {
+  padding: var(--o-s5);
+  overflow-y: auto;
+}
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--o-s2);
+  padding: var(--o-s3) var(--o-s5);
+  border-top: 1px solid var(--o-border);
+  background: var(--o-surface-2);
+}
+
+/* Alert / Confirm Dialog variant */
+.dialog {
+  max-width: 420px;
+  padding: var(--o-s5);
+  gap: var(--o-s4);
+}
+/* Combo from docs (<dialog class="modal dialog" role="alertdialog">):
+   .modal sets padding:0 with higher specificity — restore .dialog padding here */
+dialog.modal.dialog {
+  padding: var(--o-s5);
+  gap: var(--o-s4);
+}
+.dialog-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--o-r-md);
+  display: grid;
+  place-content: center;
+  background: var(--o-red-soft);
+  color: var(--o-red-text);
+  font-size: 18px;
+}
+
+/* --------------------------------------------------------------------------
+   6. COMMAND PALETTE (Raycast signature, ⌘K) — native <dialog>
+   Markup: <dialog class="palette"> with .palette-search /
+   .palette-list inside. showModal() + focus input, Esc closes.
+   -------------------------------------------------------------------------- */
+dialog.palette {
+  display: none;
+  flex-direction: column;
+  width: calc(100vw - 2 * var(--o-s5));
+  max-width: 640px;
+  max-height: min(70vh, 480px);
+  margin: 0 auto;
+  margin-top: 12vh;
+  padding: 0;
+  color: var(--o-text);
+  background: var(--o-surface);
+  border: 1px solid var(--o-border-2);
+  border-radius: var(--o-r-lg);
+  box-shadow: var(--o-shadow-lg);
+  overflow: hidden;
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  transition: opacity var(--o-speed) var(--o-ease),
+              transform var(--o-speed) var(--o-ease),
+              overlay var(--o-speed) allow-discrete,
+              display var(--o-speed) allow-discrete;
+}
+dialog.palette[open] { display: flex; }
+
+@starting-style {
+  dialog.palette[open] {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+}
+dialog.palette.is-closing {
+  opacity: 0;
+  transform: translateY(-6px) scale(0.98);
+  transition: opacity var(--o-speed) var(--o-ease),
+              transform var(--o-speed) var(--o-ease),
+              overlay var(--o-speed) allow-discrete,
+              display var(--o-speed) allow-discrete;
+}
+
+dialog.palette::backdrop {
+  background: var(--o-backdrop);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  opacity: 1;
+  transition: opacity var(--o-speed) var(--o-ease),
+              overlay var(--o-speed) allow-discrete,
+              display var(--o-speed) allow-discrete;
+}
+@starting-style {
+  dialog.palette[open]::backdrop { opacity: 0; }
+}
+dialog.palette.is-closing::backdrop { opacity: 0; }
+
+.palette-search {
+  display: flex;
+  align-items: center;
+  gap: var(--o-s3);
+  padding: var(--o-s4) var(--o-s5);
+  border-bottom: 1px solid var(--o-border);
+}
+.palette-search svg { color: var(--o-text-3); flex-shrink: 0; }
+.palette-input {
+  border: 0;
+  background: transparent;
+  font-size: 16px;
+  color: var(--o-text);
+  width: 100%;
+  outline: none;
+}
+.palette-input::placeholder { color: var(--o-text-3); }
+
+.palette-list {
+  overflow-y: auto;
+  padding: var(--o-s2);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.palette-section {
+  padding: 8px 10px 4px;
+  font-size: var(--o-fs-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--o-text-3);
+}
+.palette-item {
+  display: flex;
+  align-items: center;
+  gap: var(--o-s3);
+  padding: 8px 10px;
+  border-radius: var(--o-r-sm);
+  color: var(--o-text);
+  font-size: var(--o-fs-md);
+  cursor: pointer;
+  user-select: none;
+  transition: background var(--o-speed) var(--o-ease);
+}
+.palette-item:hover,
+.palette-item.is-selected {
+  background: var(--o-surface-2);
+}
+.palette-item svg { color: var(--o-text-2); flex-shrink: 0; }
+.palette-item .palette-sub {
+  margin-left: auto;
+  color: var(--o-text-3);
+  font-size: var(--o-fs-xs);
+}
+.palette-item.is-hidden { display: none; }
+.palette-section.is-hidden { display: none; }
+.palette-empty {
+  padding: 16px 10px;
+  font-size: var(--o-fs-md);
+  color: var(--o-text-3);
+  text-align: center;
+}
+
+.palette-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px var(--o-s4);
+  background: var(--o-surface-2);
+  border-top: 1px solid var(--o-border);
+  font-size: var(--o-fs-xs);
+  color: var(--o-text-3);
+}
+.palette-keys { display: flex; gap: var(--o-s3); }
+.palette-keys span { display: inline-flex; align-items: center; gap: 4px; }
+
+/* --------------------------------------------------------------------------
+   7. SIDEBAR & APP SHELL (.shell, .sidebar)
+   Desktop: flex row, sticky 240px sidebar.
+   Mobile (<768px): sidebar becomes an off-canvas drawer — .is-open slides it
+   in above a dimmed page (see @media block at the bottom of this file).
+   -------------------------------------------------------------------------- */
+.shell {
+  display: flex;
+  width: 100%;
+  min-height: 100vh;
+  background: var(--o-bg);
+}
+
+.sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--o-surface);
+  border-right: 1px solid var(--o-border);
+  padding: var(--o-s3);
+  gap: var(--o-s2);
+  height: 100dvh;
+  position: sticky;
+  top: 0;
+  transition: width var(--o-speed) var(--o-ease);
+}
+@supports not (height: 100dvh) {
+  .sidebar { height: 100vh; }
+}
+.sidebar.is-collapsed {
+  width: 60px;
+}
+.sidebar.is-collapsed .sidebar-label,
+.sidebar.is-collapsed .sidebar-section,
+.sidebar.is-collapsed .badge,
+.sidebar.is-collapsed .sidebar-user-meta {
+  display: none;
+}
+.sidebar.is-collapsed .nav-item {
+  justify-content: center;
+  padding: 8px 0;
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: var(--o-s2);
+  padding: var(--o-s2) var(--o-s2);
+}
+.sidebar-logo {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--o-r-sm);
+  background: var(--o-accent);
+  color: var(--o-on-accent);
+  display: grid;
+  place-content: center;
+  font-weight: 700;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 auto;
+  overflow-y: auto;
+}
+.sidebar-section {
+  padding: 12px 8px 4px;
+  font-size: var(--o-fs-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--o-text-3);
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--o-s2);
+  padding: 7px 8px;
+  border-radius: var(--o-r-sm);
+  color: var(--o-text-2);
+  font-size: var(--o-fs-md);
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color var(--o-speed) var(--o-ease), color var(--o-speed) var(--o-ease);
+}
+.nav-item:hover {
+  background: var(--o-surface-2);
+  color: var(--o-text);
+}
+.nav-item.is-active {
+  background: var(--o-surface-3);
+  color: var(--o-text);
+  font-weight: 600;
+}
+.nav-item svg { flex-shrink: 0; color: var(--o-text-3); }
+.nav-item.is-active svg { color: var(--o-accent); }
+.nav-item .badge { margin-left: auto; }
+
+.sidebar-footer {
+  border-top: 1px solid var(--o-border);
+  padding-top: var(--o-s2);
+  display: flex;
+  align-items: center;
+  gap: var(--o-s2);
+}
+
+.content {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: var(--o-s6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--o-s6);
+}
+
+/* Mobile drawer toggle — hidden on desktop, shown <768px */
+.mobile-toggle { display: none; }
+.mobile-backdrop {
+  display: none;
+}
+html.drawer-lock {
+  overflow: hidden;
+}
+
+/* --------------------------------------------------------------------------
+   8. TABS (.tabs, .tabs-pills)
+   -------------------------------------------------------------------------- */
+.tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  border-bottom: 1px solid var(--o-border);
+  width: 100%;
+}
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--o-s2);
+  padding: 8px 12px;
+  font-size: var(--o-fs-md);
+  font-weight: 500;
+  color: var(--o-text-2);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  cursor: pointer;
+  user-select: none;
+  transition: color var(--o-speed) var(--o-ease);
+}
+.tab:hover { color: var(--o-text); }
+.tab.is-active {
+  color: var(--o-accent);
+  border-bottom-color: var(--o-accent);
+}
+
+/* Pill tabs style */
+.tabs-pills {
+  border-bottom: 0;
+  background: var(--o-surface);
+  padding: 3px;
+  border-radius: var(--o-r-md);
+  border: var(--o-bw, 1px) solid var(--o-border);
+  width: auto;
+}
+.tabs-pills .tab {
+  border-bottom: 0;
+  margin-bottom: 0;
+  border-radius: var(--o-r-sm);
+  padding: 5px 12px;
+  font-size: var(--o-fs-sm);
+}
+.tabs-pills .tab.is-active {
+  background: var(--o-surface-3);
+  color: var(--o-text);
+  box-shadow: var(--o-shadow-sm);
+}
+
+/* --------------------------------------------------------------------------
+   9. TOASTS & NOTIFICATIONS (.toast-container, .toast)
+   -------------------------------------------------------------------------- */
+.toast-container {
+  position: fixed;
+  bottom: var(--o-s5);
+  right: var(--o-s5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--o-s2);
+  z-index: 1000;
+  pointer-events: none;
+}
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--o-s3);
+  min-width: 260px;
+  max-width: 380px;
+  padding: 10px 14px;
+  background: var(--o-surface);
+  border: 1px solid var(--o-border-2);
+  border-radius: var(--o-r-md);
+  box-shadow: var(--o-shadow-lg);
+  font-size: var(--o-fs-md);
+  color: var(--o-text);
+  animation: toast-in var(--o-dur-quick-2) var(--o-ease);
+  transition: opacity var(--o-speed) var(--o-ease),
+              transform var(--o-speed) var(--o-ease);
+}
+.toast.is-hiding {
+  opacity: 0;
+  transform: translateY(6px);
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.toast-success .toast-icon { color: var(--o-green-text); }
+.toast-error   .toast-icon { color: var(--o-red-text); }
+.toast-warning .toast-icon { color: var(--o-yellow-text); }
+.toast-info    .toast-icon { color: var(--o-blue-text); }
+
+.toast-close {
+  margin-left: auto;
+  color: var(--o-text-3);
+  cursor: pointer;
+  padding: 2px;
+}
+.toast-close:hover { color: var(--o-text); }
+
+/* --------------------------------------------------------------------------
+   10. DATA TABLE — modern: sticky header, sortable th, toolbar, toolbar search
+   -------------------------------------------------------------------------- */
+.table-card {
+  background: var(--o-surface);
+  border: var(--o-bw, 1px) solid var(--o-border);
+  border-radius: var(--o-r-md);
+  overflow: hidden;
+}
+.table-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--o-s2);
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--o-border);
+  background: var(--o-surface);
+}
+.table-toolbar .input {
+  width: 220px;
+  height: 28px;
+  font-size: var(--o-fs-sm);
+}
+.table-wrap {
+  max-height: 420px;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.table,
+table:not([class]) {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  text-align: left;
+  font-size: var(--o-fs-md);
+  font-variant-numeric: tabular-nums;
+}
+.table th,
+table:not([class]) th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 9px 12px;
+  font-size: var(--o-fs-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--o-text-3);
+  background: var(--o-surface-2);
+  border-bottom: 1px solid var(--o-border-2);
+  white-space: nowrap;
+  user-select: none;
+}
+.table th[data-sort],
+table:not([class]) th[data-sort] { cursor: pointer; }
+.table th[data-sort]:hover,
+table:not([class]) th[data-sort]:hover { color: var(--o-text-2); }
+.table th.is-sorted,
+table:not([class]) th.is-sorted { color: var(--o-text); }
+.table th.is-sorted::after,
+table:not([class]) th.is-sorted::after {
+  content: "▾";
+  display: inline-block;
+  margin-left: 5px;
+  font-size: 9px;
+  transform: translateY(-1px);
+  transition: transform var(--o-dur-quick-1) var(--o-ease);
+}
+.table th.is-sorted[data-dir="asc"]::after,
+table:not([class]) th.is-sorted[data-dir="asc"]::after { transform: rotate(180deg) translateY(1px); }
+.table td,
+table:not([class]) td {
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--o-border);
+  color: var(--o-text);
+  vertical-align: middle;
+}
+.table tbody tr,
+table:not([class]) tbody tr { transition: background var(--o-dur-quick-1) var(--o-ease); }
+.table tbody tr:hover,
+table:not([class]) tbody tr:hover { background: var(--o-surface); }
+.table .table-empty-row td {
+  text-align: center;
+  color: var(--o-text-3);
+  padding: var(--o-s5);
+}
+
+/* --------------------------------------------------------------------------
+   11. BADGES · AVATARS · SKELETON · KBD · PROGRESS · EMPTY · CARD
+   -------------------------------------------------------------------------- */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  padding: 0 6px;
+  font-size: var(--o-fs-xs);
+  font-weight: 500;
+  line-height: 1;
+  border-radius: var(--o-r-full);
+  background: var(--o-surface-3);
+  color: var(--o-text-2);
+  border: var(--o-bw, 1px) solid var(--o-border);
+}
+.badge-accent  { background: var(--o-accent-soft);  color: var(--o-accent-text);  border-color: transparent; }
+.badge-success { background: var(--o-green-soft);   color: var(--o-green-text);   border-color: transparent; }
+.badge-warning { background: var(--o-yellow-soft);  color: var(--o-yellow-text);  border-color: transparent; }
+.badge-danger  { background: var(--o-red-soft);     color: var(--o-red-text);     border-color: transparent; }
+.badge-info    { background: var(--o-blue-soft);    color: var(--o-blue-text);    border-color: transparent; }
+
+.badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--o-r-full);
+  background: currentColor;
+}
+.badge-success .badge-dot { background: var(--o-green); }
+.badge-warning .badge-dot { background: var(--o-yellow); }
+.badge-danger  .badge-dot { background: var(--o-red); }
+.badge-info    .badge-dot { background: var(--o-blue); }
+.badge-accent  .badge-dot { background: var(--o-accent); }
+/* guard: badge-dot is a child dot, applying it to .badge itself would crush the pill */
+span.badge.badge-dot:not(:has(> span)) {
+  width: auto;
+  height: 20px;
+  padding: 0 6px;
+  font-size: var(--o-fs-xs);
+  font-weight: 500;
+  line-height: 1;
+  gap: 4px;
+  background: var(--o-surface-3);
+  color: var(--o-text-2);
+  border: 1px solid var(--o-border);
+}
+
+/* Keyboard shortcut chip (Raycast-like ⌘K) */
+.kbd,
+kbd:not([class]) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  font-family: var(--o-mono);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--o-text-3);
+  background: var(--o-surface-3);
+  border: var(--o-bw, 1px) solid var(--o-border);
+  border-radius: 4px;
+  box-shadow: inset 0 -1px 0 var(--o-border);
+}
+
+/* Avatar */
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--o-r-full);
+  background: var(--o-surface-3);
+  color: var(--o-text);
+  font-size: var(--o-fs-sm);
+  font-weight: 600;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
+.avatar-sm { width: 22px; height: 22px; font-size: 10px; }
+.avatar-lg { width: 38px; height: 38px; font-size: var(--o-fs-md); }
+
+/* Progress bar */
+.progress {
+  width: 100%;
+  height: 6px;
+  background: var(--o-surface-3);
+  border-radius: var(--o-r-full);
+  overflow: hidden;
+}
+.progress-bar {
+  height: 100%;
+  background: var(--o-accent);
+  border-radius: var(--o-r-full);
+  transition: width var(--o-speed) var(--o-ease);
+}
+
+/* Skeleton loader */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--o-surface-2) 25%,
+    var(--o-surface-3) 50%,
+    var(--o-surface-2) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton 1.6s infinite ease-in-out;
+  border-radius: var(--o-r-sm);
+}
+@keyframes skeleton {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Empty state */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--o-s8) var(--o-s4);
+  gap: var(--o-s2);
+}
+.empty-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--o-r-md);
+  display: grid;
+  place-content: center;
+  background: var(--o-surface-2);
+  color: var(--o-text-3);
+  font-size: 20px;
+  margin-bottom: var(--o-s2);
+}
+
+/* Card container */
+.card {
+  background: var(--o-surface);
+  border: var(--o-bw, 1px) solid var(--o-border);
+  border-radius: var(--o-r-md);
+  padding: var(--o-s5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--o-s3);
+}
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* --------------------------------------------------------------------------
+   12. CODE BLOCKS (.code + classless <pre><code>)
+   Bare <pre><code> gets a code panel; JS (initCopyBlocks) upgrades bare
+   pre>code blocks with a header bar + Copy button automatically.
+   -------------------------------------------------------------------------- */
+.code,
+pre:not([class]):has(> code) {
+  position: relative;
+  margin: 0;
+  overflow: hidden;
+  background: var(--o-surface-2);
+  border: var(--o-bw, 1px) solid var(--o-border);
+  border-radius: var(--o-r-md);
+  font-size: var(--o-fs-sm);
+}
+.code-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 6px 5px 12px;
+  background: var(--o-surface);
+  border-bottom: 1px solid var(--o-border);
+}
+.code-lang {
+  font-family: var(--o-mono);
+  font-size: var(--o-fs-xs);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--o-text-3);
+}
+.code-copy {
+  font-size: var(--o-fs-xs);
+  font-weight: 600;
+  padding: 3px 8px;
+  color: var(--o-text-2);
+  background: var(--o-surface-3);
+  border: var(--o-bw, 1px) solid var(--o-border);
+  border-radius: var(--o-r-sm);
+  cursor: pointer;
+  transition: color var(--o-dur-quick-1) var(--o-ease),
+              border-color var(--o-dur-quick-1) var(--o-ease);
+}
+.code-copy:hover { color: var(--o-text); border-color: var(--o-border-2); }
+.code > code,
+pre:not([class]) > code {
+  display: block;
+  overflow-x: auto;
+  padding: 12px 14px;
+  font-family: var(--o-mono);
+  font-size: var(--o-fs-sm);
+  line-height: 1.55;
+  color: var(--o-text-2);
+  white-space: pre;
+}
+
+/* --------------------------------------------------------------------------
+   13. POPOVER — native [popover=auto] (light-dismiss + Esc built in)
+   Markup: <button popovertarget="my-pop"> + <div id="my-pop" popover=auto
+           class="popover">. Positioning: the top layer's containing
+           block is the viewport, so ohno.js syncs left/top from the trigger
+           rect on toggle (JS-anchored until CSS Anchor Positioning ships).
+   -------------------------------------------------------------------------- */
+/* Graceful degradation: engines without the popover attribute render
+   [popover] elements as normal blocks. Hide them instead of dumping open
+   panels into the layout (Safari 16 / Firefox < 125). */
+@supports not selector(:popover-open) {
+  .popover[popover] { display: none; }
+}
+
+.popover {
+  position: fixed;            /* top layer — JS sets left/top */
+  margin: 0;
+  left: auto;
+  top: auto;
+  min-width: 220px;
+  max-width: 320px;
+  padding: var(--o-s3);
+  background: var(--o-surface);
+  border: 1px solid var(--o-border-2);
+  border-radius: var(--o-r-md);
+  box-shadow: var(--o-shadow-lg);
+  width: max-content;
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity var(--o-dur-moderate-1) var(--o-ease),
+              transform var(--o-dur-moderate-1) var(--o-ease),
+              overlay var(--o-dur-moderate-1) allow-discrete,
+              display var(--o-dur-moderate-1) allow-discrete;
+}
+@starting-style {
+  .popover:popover-open {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+.popover.is-closing {
+  opacity: 0;
+  transform: translateY(-4px) scale(0.98);
+}
+.popover[data-pos="bottom"] { margin-top: 6px; }
+.popover[data-pos="top"]    { margin-top: -6px; }
+
+/* Kept for standalone tag-list usage and non-native fallback contexts */
+.pop-wrap { position: relative; display: inline-block; }
+
+/* --------------------------------------------------------------------------
+   14. TOOLTIP (JS-positioned hover hint) + SWATCHES
+   -------------------------------------------------------------------------- */
+/* Tooltip — data-tip="text" + optional data-pos="top|bottom|left|right" */
+.tooltip {
+  position: fixed;
+  z-index: 99999999 !important;
+  margin: 0;
+  border: 1px solid var(--o-border-2, var(--o-border));
+  border-radius: var(--o-r-sm, 6px);
+  padding: 5px 9px;
+  font-size: var(--o-fs-xs, 11px);
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--o-text);
+  background: var(--o-surface-3, #1e1e24);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45), 0 0 0 1px var(--o-border);
+  pointer-events: none;
+  max-width: min(320px, calc(100vw - 20px));
+  width: max-content;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  box-sizing: border-box;
+  opacity: 0;
+  visibility: hidden;
+  transform: none !important;
+  translate: none !important;
+  transition: opacity 0.15s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.15s ease;
+}
+.tooltip.is-visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Swatch — palette color picker dot */
+.swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--o-r-full);
+  border: 2px solid transparent;
+  outline: 1px solid var(--o-border-2);
+  outline-offset: -1px;
+  cursor: pointer;
+  transition: transform var(--o-dur-quick-2) var(--o-ease);
+}
+.swatch:hover { transform: scale(1.12); }
+.swatch.is-active {
+  border-color: var(--o-text);
+  outline-color: transparent;
+}
+.swatch[data-set-palette="indigo"] { background: #696fde; }
+.swatch[data-set-palette="ember"]  { background: #da7f3b; }
+.swatch[data-set-palette="forest"] { background: #6bae83; }
+.swatch[data-set-palette="mono"]   { background: #8b8b93; }
+
+/* --------------------------------------------------------------------------
+   15. DISCLOSURE — classless <details>/<summary> (zero JS, zero classes)
+   Panel surface matches .card; the marker is a pure-border chevron so it
+   survives forced-colors mode (no background images, no glyph fonts).
+   [open] rotates the chevron; content gets the standard panel padding.
+   -------------------------------------------------------------------------- */
+details:not([class]) {
+  border: var(--o-bw, 1px) solid var(--o-border);
+  border-radius: var(--o-r-md);
+  background: var(--o-surface-2);
+  overflow: hidden;
+}
+details:not([class]) + details:not([class]) {
+  margin-top: var(--o-s2);
+}
+details:not([class])[open] {
+  background: var(--o-surface);
+}
+
+details:not([class]) > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--o-s2);
+  padding: var(--o-s3) var(--o-s4);
+  font-weight: 600;
+  font-size: var(--o-fs-md);
+  color: var(--o-text);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  transition: background var(--o-dur-quick-1) var(--o-ease);
+}
+details:not([class]) > summary::-webkit-details-marker { display: none; }
+details:not([class]) > summary:hover {
+  background: var(--o-surface-3);
+}
+details:not([class]) > summary:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--o-accent);
+}
+
+/* Chevron: border-only triangle corner, rotates 90° when open.
+   Border trick (not background-image) keeps it visible in forced-colors. */
+details:not([class]) > summary::after {
+  content: "";
+  margin-left: auto;
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid var(--o-text-3);
+  border-bottom: 2px solid var(--o-text-3);
+  transform: rotate(45deg);
+  transition: transform var(--o-dur-quick-2) var(--o-ease);
+}
+details:not([class])[open] > summary::after {
+  transform: rotate(225deg);
+}
+
+details:not([class]) > *:not(summary) {
+  margin: 0;
+  padding: 0 var(--o-s4);
+}
+details:not([class]) > *:not(summary):first-child { margin-top: 0; }
+details:not([class]) > :last-child {
+  padding-bottom: var(--o-s4);
+}
+details:not([class]) > p:not(:last-child) {
+  margin-bottom: var(--o-s2);
+}
+
+/* ==========================================================================
+   NOTCH — opt-in top-center quick bar (<html data-notch>, injected by ohno.js)
+   Home link · appearance popover (theme/palette/contrast/density) · ⌘K search.
+   User <a>/<button> children appended inside the nav are styled automatically.
+   ========================================================================== */
+.ohno-notch {
+  position: fixed;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 500; /* above drawer (400), below toasts (1000) */
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: var(--o-h-md);
+  padding: 0 6px;
+  border-radius: var(--o-r-full);
+  background: color-mix(in srgb, var(--o-surface-2) 72%, transparent);
+  border: var(--o-bw, 1px) solid var(--o-border);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  box-shadow: var(--o-shadow-md);
+  transition:
+    opacity var(--o-dur-quick-2) var(--o-ease),
+    transform var(--o-dur-moderate-1) var(--o-ease),
+    translate var(--o-dur-quick-2) var(--o-ease);
+}
+@starting-style {
+  .ohno-notch {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-14px);
+  }
+}
+.ohno-notch.is-hidden { opacity: 0; translate: 0 -8px; pointer-events: none; }
+
+.ohno-notch a,
+.ohno-notch button,
+.ohno-notch .notch-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--o-h-sm);
+  min-width: var(--o-h-sm);
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--o-r-full);
+  background: transparent;
+  color: var(--o-text-2);
+  font-size: var(--o-fs-sm);
+  font-family: inherit;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--o-dur-quick-2) var(--o-ease), color var(--o-dur-quick-2) var(--o-ease);
+}
+.ohno-notch a:hover,
+.ohno-notch button:hover,
+.ohno-notch .notch-btn:hover { background: var(--o-surface-3); color: var(--o-text); }
+.ohno-notch a:focus-visible,
+.ohno-notch button:focus-visible,
+.ohno-notch .notch-btn:focus-visible { outline: none; box-shadow: var(--o-ring); }
+/* active pick inside the appearance popover (theme/palette/contrast/density) */
+.ohno-notch .notch-btn.is-active,
+.popover .swatch.is-active { border-color: var(--o-text); box-shadow: var(--o-ring); }
+.ohno-notch .notch-btn.is-active { background: var(--o-accent-soft); color: var(--o-accent); }
+.ohno-notch a svg,
+.ohno-notch button svg { width: 15px; height: 15px; }
+
+.ohno-notch .notch-sep {
+  width: 1px;
+  height: 14px;
+  margin: 0 3px;
+  background: var(--o-border-2);
+}
+
+/* theme popover wrap — SIBLING of the pill (backdrop-filter would create a
+   containing block and break position:fixed placement by initPopovers) */
+.notch-pop-wrap { position: fixed; top: 0; left: 50%; width: 0; height: 0; }
+
+/* ==========================================================================
+   RESPONSIVE APP SHELL — < 768px
+   Sidebar slides over the content as a drawer; scrim behind it; grids stack.
+   ========================================================================== */
+@media (max-width: 767.98px) {
+
+  .shell {
+    display: block;
+  }
+
+  .mobile-toggle {
+    display: inline-flex;
+  }
+
+  /* Drawer */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 400;
+    width: 264px;
+    max-width: 86vw;
+    height: 100dvh;
+    transform: translateX(-100%);
+    transition: transform var(--o-dur-moderate-2) var(--o-ease),
+                box-shadow var(--o-dur-moderate-2) var(--o-ease);
+    box-shadow: none;
+    border-right: 1px solid var(--o-border);
+  }
+  @supports not (height: 100dvh) {
+    .sidebar { height: 100vh; }
+  }
+  .sidebar.is-open {
+    transform: translateX(0);
+    box-shadow: var(--o-shadow-lg);
+  }
+
+  /* Scrim (JS toggles .is-open; covers content, sits under drawer).
+     display:block restores the element hidden by the desktop rule above. */
+  .mobile-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 300;
+    background: var(--o-backdrop);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--o-dur-moderate-2) var(--o-ease);
+  }
+  .mobile-backdrop.is-open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* Sticky top bar area: content padding tightens, header rows wrap */
+  .content {
+    padding: var(--o-s4);
+    gap: var(--o-s4);
+  }
+  .content > .row {
+    flex-wrap: wrap;
+  }
+
+  /* Layout helpers collapse to single column */
+  .grid-2,
+  .grid-3,
+  .grid-4 {
+    grid-template-columns: 1fr;
+  }
+
+  /* Table scrolls horizontally instead of crushing */
+  .table-toolbar { flex-wrap: wrap; }
+  .table-toolbar .input { flex: 1 1 140px; width: auto; }
+
+  /* Classless tables: wrap in a scroll container so wide data tables
+     (user directory, advisories) never push the page wider than 100vw. */
+  table:not([class]) {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Toasts full-width-ish at the bottom */
+  .toast-container {
+    left: var(--o-s3);
+    right: var(--o-s3);
+    bottom: var(--o-s3);
+  }
+  .toast { min-width: 0; max-width: none; width: 100%; }
+}
+
+  /* ------------------------------------------------------------------ *
+   * 16. CLASSLESS NATIVE SELECT — bare <select> (pre-hydration / JS-off)
+   * The synthetic widget (select) replaces it when JS runs; the
+   * native select is then display:none inside .select root.
+   * ------------------------------------------------------------------ */
+  select:not([class]) {
+    appearance: none;
+    width: 100%;
+    height: var(--o-h-md);
+    padding: 0 28px 0 10px;
+    font: inherit;
+    font-size: var(--o-fs-md);
+    color: var(--o-text);
+    background: var(--o-chevron) right 10px center / 10px 6px no-repeat;
+    background-color: var(--o-surface);
+    border: var(--o-bw, 1px) solid var(--o-border);
+    border-radius: var(--o-r-sm);
+  }
+  select:not([class]):hover,
+  select:not([class]):focus-visible {
+    border-color: var(--o-border-2);
+  }
+  select:not([class]):focus-visible {
+    border-color: var(--o-accent);
+    box-shadow: 0 0 0 1px var(--o-accent);
+  }
+  select:not([class]):disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+} /* @layer components */

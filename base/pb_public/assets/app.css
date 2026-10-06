@@ -1,0 +1,93 @@
+/* baseStarter — app-specific CSS.
+ *
+ * ohno (vendored at /vendor/ohno/) already styles every native element and
+ * component used on the page: buttons, inputs, tables, cards, badges, dialogs,
+ * tabs, the sidebar shell, the code panels and the palette. This file only adds
+ * the handful of layout tweaks ohno does not own, and it always consumes ohno's
+ * design tokens (--o-*) so it follows every theme / face / palette change.
+ *
+ * Rule of thumb: if ohno has a class for it, use the class. Do not restyle kit
+ * internals here.
+ */
+
+/* ── shell ──────────────────────────────────────────────────────────────── */
+
+/* The top-center notch floats over the content, so clear its height. */
+.content { padding-top: calc(var(--o-s6) + var(--o-h-md)); }
+
+/* Sidebar items that are <button> (Overview/Posts/…): make them behave like the
+ * kit's <a class="nav-item"> — full-width, no button chrome, inherits type. */
+button.nav-item {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  font: inherit;
+  font-weight: 500;
+  text-align: left;
+}
+
+.sidebar-footer { justify-content: space-between; }
+.sidebar-user-meta { flex: 1; min-width: 0; display: grid; gap: 4px; justify-items: start; }
+
+/* Count pill in the sidebar sits after the label. */
+.nav-item .badge { margin-left: auto; }
+
+/* ── content ────────────────────────────────────────────────────────────── */
+
+.app-hero h1 {
+  margin: 0 0 var(--o-s2);
+  font-size: clamp(1.6rem, 3.4vw, 2.3rem);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+.app-hero p { margin: 0; max-width: 60ch; }
+
+.stack { display: grid; gap: var(--o-s4); }
+.stack [data-panel] { display: grid; gap: var(--o-s4); }
+
+/* ohno's vendored CSS ships only the MOBILE override for `.grid-2/3/4`
+ * (max-width:767.98px → 1fr); the desktop base rule is absent, so the helpers
+ * collapse to a single column at every width. Provide the missing base here.
+ * `display: grid` is set unconditionally; the column counts live in a
+ * `min-width` query so ohno's own mobile rule still wins below 768px. */
+.grid-2, .grid-3, .grid-4 { display: grid; gap: var(--o-s4); }
+@media (min-width: 768px) {
+  .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+/* Stat cards */
+.stats { margin: 0; }
+.stats .card { gap: 2px; }
+.metric { font-size: 1.9rem; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; }
+
+/* Activity timeline */
+.timeline { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.timeline li { display: flex; align-items: center; gap: var(--o-s3); min-width: 0; }
+
+/* Inline code inside captions/rows should not add visual noise. */
+.caption code { font-size: 0.85em; }
+
+/* Banners */
+.error-banner {
+  color: var(--o-red-text);
+  background: var(--o-red-soft);
+  border-color: color-mix(in srgb, var(--o-red) 40%, transparent);
+  margin: 0;
+}
+
+/* Dialog forms */
+.form-actions { justify-content: flex-end; margin-top: var(--o-s2); }
+dialog .field + .field { margin-top: var(--o-s3); }
+.post-body { white-space: pre-wrap; max-height: 52vh; overflow: auto; margin: 0; }
+
+/* Page footer */
+.app-footer {
+  border-top: 1px solid var(--o-border);
+  padding-top: var(--o-s3);
+  margin-top: var(--o-s2);
+}
+
+/* Tables: keep long paths/slugs from stretching the layout. */
+.table-wrap td code { white-space: nowrap; }

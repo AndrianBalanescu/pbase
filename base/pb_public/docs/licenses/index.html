@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en" data-notch data-notch-home="/">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>baseStarter · Third-party licenses</title>
+  <meta name="description" content="License texts for every library baseStarter bundles or vendors.">
+  <script>try{var t=localStorage["ohno-theme"];if(t)document.documentElement.dataset.theme=t;if(matchMedia("(prefers-color-scheme: light)").matches&&!t)document.documentElement.dataset.look="light"}catch(e){}</script>
+
+  <!-- ohno — vendored zero-build UI kit. Classless-first: no invented classes. -->
+  <link rel="stylesheet" href="/vendor/ohno/tokens.min.css">
+  <link rel="stylesheet" href="/vendor/ohno/base.min.css">
+  <link rel="stylesheet" href="/vendor/ohno/components.min.css">
+  <link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+  <template data-notch-items>
+    <a class="notch-btn" href="/" aria-label="App" data-tip="App">⌂</a>
+    <a class="notch-btn" href="/docs/" aria-label="API reference" data-tip="API docs">▤</a>
+    <button class="notch-btn" data-action="theme-toggle" aria-label="Toggle light / dark" data-tip="Theme">◐</button>
+  </template>
+
+  <!--
+    Static page — no Vue, no fetch. /docs/licenses/ would otherwise fall through to the
+    SPA (indexFallback) and show the dashboard; this lists the licence texts instead.
+    Keep it in sync with README.md in this directory when a dependency is added/replaced.
+  -->
+  <main class="content" style="max-width: 60rem; margin-inline: auto; padding: 2rem 1rem;">
+    <h1>Third-party licenses</h1>
+    <p>
+      baseStarter's own code is MIT — see the <code>LICENSE</code> file at the repository root.
+      Everything baseStarter bundles or vendors is MIT too; the full texts are collected here,
+      one file per dependency.
+    </p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Component</th><th>Version</th><th>License</th><th>Copyright</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>PocketBase server <span class="caption">(<code>base/pocketbase</code> binary)</span></td>
+            <td>0.40.4</td>
+            <td><a href="./pocketbase-server.txt">pocketbase-server.txt</a></td>
+            <td>© 2022–present Gani Georgiev</td>
+          </tr>
+          <tr>
+            <td>PocketBase JS SDK <span class="caption">(<code>vendor/pocketbase.umd.js</code>)</span></td>
+            <td>0.26.8</td>
+            <td><a href="./pocketbase-js-sdk.txt">pocketbase-js-sdk.txt</a></td>
+            <td>© 2022–present Gani Georgiev</td>
+          </tr>
+          <tr>
+            <td>Vue 3 global build <span class="caption">(<code>vendor/vue.global.prod.js</code>)</span></td>
+            <td>3.5.13</td>
+            <td><a href="./vue.txt">vue.txt</a></td>
+            <td>© 2018–present Yuxi (Evan) You and Vue contributors</td>
+          </tr>
+          <tr>
+            <td>ohno UI kit <span class="caption">(<code>vendor/ohno/</code>)</span></td>
+            <td>4.6</td>
+            <td><a href="./ohno.txt">ohno.txt</a></td>
+            <td>© 2026 Andrian Balanescu</td>
+          </tr>
+          <tr>
+            <td>Scalar API reference <span class="caption">(<code>vendor/scalar.standalone.js</code>)</span></td>
+            <td>@scalar/api-reference 1.73.0</td>
+            <td><a href="./scalar.txt">scalar.txt</a></td>
+            <td>© 2023–present Scalar</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="caption">
+      The <code>base/pocketbase</code> binary is not committed — <code>scripts/bootstrap.sh</code>
+      downloads the version pinned in <code>base/pocketbase.version</code> at setup time.
+      Machine-readable index: <a href="./README.md">README.md</a>.
+    </p>
+  </main>
+
+  <script src="/vendor/ohno/ohno.min.js"></script>
+</body>
+</html>

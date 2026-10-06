@@ -1,0 +1,69 @@
+# baseStarter
+
+> A production-oriented PocketBase starter: one Go binary + SQLite, zero-build **ohno** UI on Vue 3, JS migrations and hooks, and an agent-first toolchain (AGENTS.md, skills, llms.txt, live OpenAPI). PocketBase v0.40.4.
+
+This file follows the [llms.txt](https://llmstxt.org) convention: concise, link-first, safe for an LLM to read in one pass. For the full operating manual see [/llms-full.txt](/llms-full.txt).
+
+## Quick start
+
+- `./scripts/bootstrap.sh` — install binary, migrate, create superuser (idempotent)
+- `./scripts/dev.sh` — dev server on `http://127.0.0.1:8090` with SQL logging + hook hot-reload
+- `make help` — every task (migrate, new-migration, backup, reset)
+- `SEED_DEMO=1 ./scripts/dev.sh` — insert a demo user + 3 posts
+
+## Agent entry points (read in this order)
+
+- [AGENTS.md](/AGENTS.md): frontend guide for `base/pb_public/` — the repo-root `AGENTS.md` has the full repo rules and traps table (repo path, not served over HTTP)
+- [/llms-full.txt](/llms-full.txt): complete API + CLI + migration + hook manual
+- `.agents/skills/` (repo path, not served over HTTP): task skills — `pocketbase-schema`, `pocketbase-hooks`, `pocketbase-api-client`
+- [/docs/](/docs/): interactive OpenAPI 3.1 reference (Scalar). The spec at [/openapi.json](/openapi.json) is **generated live** from the running app — collections via `$app.findAllCollections()`, custom routes via `base/pb_hooks/lib/api.js` — so it cannot drift.
+- [/healthz](/healthz): liveness JSON
+- [/docs/licenses/](/docs/licenses/): license texts for everything baseStarter bundles or vendors (PocketBase, Vue, ohno, Scalar). The starter's own code is MIT — see `LICENSE` at the repo root.
+
+> **Before writing custom code, use the native API.** `.agents/reference/` (repo, not served
+> over HTTP) holds the full PocketBase knowledge base: `TOP-20-APIs.md` (ranked cheat sheet +
+> built-in-vs-custom rule), `pocketbase-docs.txt`, `pocketbase-jsvm.txt`, `pocketbase-js-sdk.md`,
+> and `PRODUCTION.md` (going-live: rules, backups, security, the scaling wall).
+> 90% of "I'll write a route/helper" is already an API rule, a field option, an index, `expand`,
+> `cronAdd`, or `/api/batch`.
+
+> Nested `AGENTS.md` files scope guidance to a directory (`base/pb_hooks/`, `base/pb_migrations/`,
+> `base/pb_public/`, `scripts/`). `base/pb_public/AGENTS.md` documents the frontend + SDK patterns and
+> is served here at [`/AGENTS.md`](/AGENTS.md).
+
+## Runtime map
+
+- `base/pb_migrations/` — schema as versioned, reversible JS migrations (`make migrate`)
+- `base/pb_hooks/` — server-side JS hooks: record guards, custom routes, cron, webhooks
+- `base/pb_public/` — static frontend served at `/` (ohno UI kit + Vue 3 global build, no bundler)
+- `base/pb_data/` — SQLite DB + uploads (gitignored, git-ignored runtime state)
+- `scripts/`, `Makefile` — install / dev / migrate / backup / reset tasks
+
+> **The UI kit is a default, not a lock-in.** The server (`pb_hooks/`, `pb_migrations/`, `scripts/`)
+> never references ohno or Vue, and all 6 ohno calls in `assets/app.js` are guarded, so the API and
+> page survive swapping in another kit. Swap surface = `index.html`, `assets/app.css`, `assets/app.js`
+> and the static `docs/licenses/index.html`; `/docs/` (Scalar) is independent.
+
+## API surface
+
+- REST: `/api/collections/{collection}/records` (list, view, create, update, delete)
+- Auth: `/api/collections/users/auth-with-password`, `-with-otp`, `-with-oauth2`
+- Realtime: `/api/realtime` (SSE) — `pb.collection('posts').subscribe('*', cb)`
+- Batch: `/api/batch` — up to 50 ops in one request
+- Custom: `/api/stats`, `/api/activity?limit=`, `/api/me`, `/healthz`
+- Live schema: `/api/schema` — every collection's fields, indexes and API-rule exposure
+- Live spec: `/openapi.json`; `/docs/` renders it with Scalar
+- Admin UI: `/_/` (superuser only)
+
+## Collections
+
+- `users` (auth, ships with PocketBase) — extended with `bio`, `role`; public sign-up, owner-only edits (`role` changes require an admin — enforced by a hook)
+- `posts` — `title`, `slug` (unique, auto), `body`, `status`, `lang`, `tags`, `cover`, `metadata`, `publishedAt`, `author`
+- `comments` — `body`, `author`, `post` (cascade-deletes with the post)
+
+## Hard rules for agents
+
+- Never hand-edit schema in the DB. Change collections only through a migration in `base/pb_migrations/`.
+- Always set `max` on text fields — PocketBase silently defaults to 5000 chars and rejects oversized writes.
+- API rules: `""` (empty) = public (rule disabled), `null` = superuser-only, `"expr"` = per-request filter.
+- Hooks run in pooled VMs: a handler sees only globals + its own locals — `require(\`${__hooks}/lib/x.js\`)` inside the handler for shared helpers; `e.next()` is mandatory.

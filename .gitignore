@@ -1,0 +1,27 @@
+# PocketBase runtime data (SQLite DB, uploads, logs) — never commit
+base/pb_data/
+*.db
+*.db-shm
+*.db-wal
+base/PB_DIR/
+PB_DIR/
+
+# PocketBase binary (installed via scripts/install-pocketbase.sh)
+base/pocketbase
+base/pocketbase.exe
+
+# Env / secrets
+.env
+.env.local
+
+# Research scratch (swarm output)
+.research/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Local backups
+base/backups/

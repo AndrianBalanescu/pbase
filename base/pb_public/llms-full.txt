@@ -1,0 +1,590 @@
+# baseStarter — Agent Operating Manual (llms-full.txt)
+
+> Complete, self-contained operating manual for developing against this PocketBase
+> starter. PocketBase **v0.40.4** · single Go binary + SQLite · zero-build frontend.
+
+Everything here was verified against a running instance of this exact repo. Copy-paste
+the commands as-is. If a command's behaviour differs from this document, trust the binary
+and fix the document.
+
+---
+
+## 1. What this project is
+
+- **Backend**: PocketBase v0.40.4 — an all-in-one Go binary bundling a SQLite database,
+  a REST API, an auth system, realtime SSE, a file store, cron, an admin dashboard, and a
+  Goja JavaScript VM for server-side hooks and migrations.
+- **Schema**: defined as versioned JS migrations in `base/pb_migrations/` (reversible up/down).
+- **Server logic**: JSVM hooks in `base/pb_hooks/` (record guards, custom routes, cron, webhooks).
+- **Frontend**: static files in `base/pb_public/` served at `/`. The **ohno** UI kit + Vue 3 global
+  build + the PocketBase JS SDK, all vendored. **No bundler, no node_modules, no build step.**
+- **Admin UI**: `/_/` (superusers only).
+- **API reference**: `/docs/` (Scalar) renders `/openapi.json`, which is **generated live** by
+  `base/pb_hooks/lib/openapi.js` — collections from the DB, custom routes from the `ROUTES` table.
+
+### File map
+
+```
+baseStarter/
+├── Makefile                    # task runner (make help)
+├── AGENTS.md                   # canonical agent guide
+├── README.md                   # human onboarding + reuse guide
+├── .env.example                # copy to .env
+├── .agents/                    # agent knowledge (skills + reference) — repo only, not served
+├── scripts/
+│   ├── install-pocketbase.sh   # download pinned binary for this OS/arch
+│   ├── bootstrap.sh            # install + migrate + superuser (idempotent)
+│   ├── dev.sh                  # dev server (:8090, --dev, hot hook reload); ensures a superuser
+│   ├── backup.sh               # consistent sqlite snapshot of the data dir → base/backups/
+│   └── lib/                    # shared bash helpers: env.sh, ensure-superuser.sh
+├── base/                       # ALL PocketBase artifacts live here
+│   ├── pocketbase              # the binary (gitignored; install with scripts/)
+│   ├── pocketbase.version      # pinned version — single source of truth
+│   ├── pb_migrations/          # schema as versioned JS migrations
+│   │   ├── 1791215000_init_schema.js   # settings + users/posts/comments + rules
+│   │   └── 1791215001_seed_demo.js     # demo data, no-op unless SEED_DEMO=1
+│   ├── pb_hooks/               # JSVM hooks (load order = filename order)
+│   │   ├── AGENTS.md           #   scoped guide: handler contract, scoping, routes
+│   │   ├── lib/                #   stateless modules — require() INSIDE handlers via ${__hooks}
+│   │   │   ├── api.js          #     the ROUTES table: handler + OpenAPI metadata (source of truth)
+│   │   │   ├── openapi.js      #     builds the OpenAPI 3.1 doc from the app + ROUTES
+│   │   │   └── slug.js         #     slugify() / nowPB() helpers
+│   │   ├── 10_record_hooks.pb.js  # guards/invariants (Request hooks: API + Admin UI writes)
+│   │   ├── 20_custom_routes.pb.js # registration entry point (loads lib/api.js)
+│   │   ├── 30_api_docs.pb.js      # serves GET /openapi.json (live)
+│   │   ├── 50_cron.pb.js          # background jobs
+│   │   └── 60_webhooks.pb.js      # outbound HTTP (POST_WEBHOOK_URL)
+│   ├── pb_public/              # static site root (served at /)
+│   │   ├── index.html          #   ohno SPA (sidebar shell, dashboard, posts, schema, API)
+│   │   ├── AGENTS.md           #   scoped guide (+ served at GET /AGENTS.md)
+│   │   ├── assets/{app.js,app.css}
+│   │   ├── docs/index.html     #   Scalar API reference (reads the live spec)
+│   │   ├── docs/licenses/      #   third-party MIT texts + index.html (/docs/licenses/)
+│   │   ├── llms.txt            #   agent discovery
+│   │   └── vendor/             #   offline libs: pocketbase.umd.js · vue.global.prod.js
+│   │                           #     ohno/ (UI kit) · scalar.standalone.js
+│   ├── pb_data/                # SQLite DB + uploads (gitignored runtime state)
+│   └── backups/                # data-dir snapshots (gitignored)
+└── LICENSE                     # MIT for the starter code (root = where GitHub detects it)
+```
+
+> There is **no `base/pb_public/openapi.json`**. `/openapi.json` is a route (`30_api_docs.pb.js`)
+> that renders the spec on demand — it cannot drift from the schema or the route table.
+
+---
+
+## 2. Commands
+
+```bash
+./scripts/bootstrap.sh          # fresh checkout → migrated + superuser (idempotent)
+./scripts/dev.sh                # dev server on http://127.0.0.1:8090 (ensures a superuser first)
+./scripts/dev.sh 8091           # custom port (env: PB_DIR, PB_HTTP, PB_ENCRYPTION_KEY)
+SEED_DEMO=1 ./scripts/dev.sh    # + demo user & 3 posts (only if posts is empty)
+./scripts/backup.sh             # snapshot the data dir → base/backups/<ts>.tar.gz (PB_DIR aware)
+./scripts/install-pocketbase.sh # (re)install the pinned binary
+```
+
+```bash
+make help            # list all targets
+make migrate         # apply pending migrations
+make migrate-down    # revert the last migration (non-interactive)
+make new-migration name=add_widgets
+make collections     # snapshot current UI schema into a migration file
+make backup
+make reset           # DESTRUCTIVE: delete base/pb_data/ then re-migrate (CONFIRM=1 if non-interactive)
+```
+
+Raw CLI (defaults already correct for this layout):
+
+```bash
+./base/pocketbase serve --dev --http=127.0.0.1:8090
+./base/pocketbase migrate up | migrate down [n] | migrate create <name> | migrate collections | migrate history-sync
+./base/pocketbase superuser upsert <email> <password>   # email MUST contain a dot
+./base/pocketbase superuser otp <email>
+./base/pocketbase update                                # self-update the binary
+```
+
+Global flags: `--dev`, `--dir` (`pb_data`), `--publicDir` (`pb_public`),
+`--hooksDir`, `--hooksWatch` (on), `--hooksPool` (15), `--migrationsDir`,
+`--automigrate`, `--indexFallback`, `--queryTimeout` (30s), `--encryptionEnv`.
+
+> ⚠️ `migrate create` and `migrate down` **prompt for confirmation**. Non-interactive:
+> `echo y | ./base/pocketbase migrate create <name>` / `echo y | ./base/pocketbase migrate down`.
+
+> ⚠️ `migrate create` emits a **`.js`** template (JS is the default language in v0.40).
+
+---
+
+## 3. Data model in this repo
+
+### `users` (auth collection — ships with PocketBase)
+
+Stock fields: `id`, `password`, `tokenKey`, `email`, `emailVisibility`, `verified`,
+`name`, `avatar`, `created`, `updated`. The migration **extends** it with:
+
+| field  | type   | notes |
+|--------|--------|-------|
+| `bio`  | text   | max 2000 |
+| `role` | select | one of `admin`, `editor`, `viewer` |
+
+Rules: list `""` (public), view `""` (public), create `""` (public sign-up),
+update/delete `id = @request.auth.id`.
+
+### `posts`
+
+| field | type | notes |
+|---|---|---|
+| `title` | text | required, max 300 |
+| `slug` | text | required, max 300, **unique index**, auto-derived from title |
+| `body` | text | max **200000** (never leave `max` unset — it defaults to 5000) |
+| `status` | select | `draft` \| `published` \| `archived` |
+| `lang` | select | `en` \| `ro` \| `de` \| `fr` \| `es` |
+| `tags` | json | free-form array |
+| `cover` | file | 1 file, max 5 MB, thumbs `400x300`, `100x100` |
+| `metadata` | json | max 200 KB |
+| `publishedAt` | date | stamped by a hook on first publish |
+| `created`,`updated` | autodate | explicit — base collections don't add these automatically |
+| `author` | relation→users | required, 1 |
+
+Rules: `listRule`/`viewRule` = `status = 'published' || @request.auth.id != ''`;
+`createRule` = `@request.auth.id != ''`; `update`/`delete` = `author = @request.auth.id`.
+
+### `comments`
+
+`body` (text, max 10000), `author` (relation→users, cascade delete),
+`post` (relation→posts, **cascade delete — removing a post removes its comments**),
+plus `created`/`updated`.
+
+---
+
+## 4. REST API
+
+Base: `http://127.0.0.1:8090`
+
+| Operation | Method & path |
+|---|---|
+| List | `GET /api/collections/{coll}/records` |
+| View | `GET /api/collections/{coll}/records/{id}` |
+| Create | `POST /api/collections/{coll}/records` |
+| Update | `PATCH /api/collections/{coll}/records/{id}` |
+| Delete | `DELETE /api/collections/{coll}/records/{id}` |
+| Auth | `POST /api/collections/users/auth-with-password` |
+| Refresh | `POST /api/collections/users/auth-refresh` |
+| Realtime | `GET /api/realtime` (SSE) |
+| Batch | `POST /api/batch` |
+| Health | `GET /api/health` · app health `GET /healthz` |
+
+### Query parameters (list endpoints)
+
+| param | meaning |
+|---|---|
+| `page` | 1-based page (default 1) |
+| `perPage` | rows per page (default 30, **silently clamped to 1000**; `perPage=0` resets to 30) |
+| `sort` | comma-separated fields; `-` prefix = DESC (`-created,title`) |
+| `filter` | PocketBase filter expression (below) |
+| `expand` | comma-separated relation fields to inline (`author,post`) |
+| `fields` | sparse fieldset (`id,title,author`) |
+| `skipTotal` | `1` to skip the COUNT query (faster lists). `totalItems`/`totalPages` then return **`-1`**, not `null`. Use `perPage=1&skipTotal=1` when you only need a total. |
+
+### Filter syntax
+
+Operators: `=` `!=` `>` `>=` `<` `<=` `~` (contains) `!~` (not contains)
+`?=` (any-equal, multi-relation) `?~` (any-contains) `?!=` … and helpers
+`geoDistance(lon, lat, "fieldName")`.
+
+```
+status = 'published' && (title ~ 'agent' || body ~ 'agent')
+author = 'USERS_RECORD_ID' && created > '2026-01-01 00:00:00.000Z'
+comments_via_post.id != ''        # back-relation: posts that have comments
+@request.auth.id != '' && author = @request.auth.id
+```
+
+⚠️ **Multi-valued paths match-all by default.** A path through a multi-relation,
+multi-select or multi-file field (`comments_via_post.body`, `tags`) requires *every*
+value matches. Use the `?`-prefixed operators for *any-of*: `comments_via_post.body ?~ 'spam'`.
+Date comparisons are **string** comparisons — always filter with a full timestamp
+(`created >= '2026-01-02 00:00:00.000Z'`), never a bare date.
+
+Bind user input — never string-concatenate it. In JS: `pb.filter(...)`. On the server:
+`$app.findRecordsByFilter("posts", "title ~ {:q}", "-created", 20, 0, { q: q })`.
+
+### curl recipes
+
+```bash
+BASE=http://127.0.0.1:8090
+
+# Public, published posts only
+curl -s "$BASE/api/collections/posts/records?filter=status%3D'published'&sort=-created&perPage=5"
+
+# Sign in and capture a token
+TOKEN=$(curl -s -X POST "$BASE/api/collections/users/auth-with-password" \
+  -H 'Content-Type: application/json' \
+  -d '{"identity":"demo@local.local","password":"demo12345678"}' | jq -r .token)
+
+# Create a post (slug auto-derived; publishedAt auto-stamped when status=published)
+curl -s -X POST "$BASE/api/collections/posts/records" \
+  -H "Authorization: $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"title":"Hello agents","status":"published","author":"USERS_RECORD_ID"}'
+
+# Expand the author relation
+curl -s "$BASE/api/collections/posts/records?expand=author&perPage=1" -H "Authorization: $TOKEN"
+
+# Custom routes (defined in base/pb_hooks/lib/api.js)
+curl -s "$BASE/healthz"
+curl -s "$BASE/api/stats"
+curl -s "$BASE/api/activity?limit=8"
+curl -s "$BASE/api/me" -H "Authorization: $TOKEN"
+curl -s "$BASE/api/schema"            # live collections + fields + rule exposure
+curl -s "$BASE/openapi.json"          # the generated spec
+```
+
+> The `Authorization` header takes the raw token — **no** `Bearer ` prefix.
+
+### Realtime (SSE)
+
+```bash
+# Stateless subscribe: open the stream with a clientId and the topics to watch.
+curl -N "http://127.0.0.1:8090/api/realtime?clientId=$(uuidgen)&subscriptions=posts"
+# → 200 text/event-stream; each event is a JSON payload {action, record}
+```
+
+The JS SDK opens `GET /api/realtime` and then POSTs `{clientId, subscriptions}` to the
+same path to update topics on the live stream — you do not need to POST for a one-off curl
+subscription.
+
+```js
+pb.collection('posts').subscribe('*', (e) => console.log(e.action, e.record));
+```
+
+**Realtime respects list/view rules** — a client only receives events for records it may see.
+
+### Batch
+
+`POST /api/batch` runs several **record mutations** in ONE transaction (max 50 ops).
+Body: `{"requests": [ { "method", "url", "body", "headers" } ]}`.
+
+⚠️ Only these actions are supported: record **create** (`POST .../records`),
+**update** (`PATCH .../records/{id}`), **upsert** (`PUT .../records`, body must carry `id`)
+and **delete** (`DELETE .../records/{id}`). Arbitrary GET endpoints are rejected. The batch
+API is **disabled by default**; this repo enables it in `base/pb_migrations/1791215000_init_schema.js`.
+A failure in any request rolls back the whole batch.
+
+```bash
+curl -s -X POST "$BASE/api/batch" -H "Authorization: $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"requests":[
+        {"method":"POST","url":"/api/collections/posts/records","body":{"title":"A","author":"USER_ID"}},
+        {"method":"POST","url":"/api/collections/posts/records","body":{"title":"B","author":"USER_ID"}}
+      ]}'
+# → [{"status":200,"body":{...}}, {"status":200,"body":{...}}]
+```
+
+---
+
+## 5. Migrations
+
+Schema lives in `base/pb_migrations/<unix>_<name>.js`:
+
+```js
+/// <reference path="../pb_data/types.d.ts" />
+migrate((app) => {
+  const c = new Collection({
+    type: "base",
+    name: "widgets",
+    listRule: "", viewRule: "", createRule: "@request.auth.id != ''",
+    updateRule: "@request.auth.id != ''", deleteRule: "@request.auth.id != ''",
+    fields: [
+      { name: "label",   type: "text", required: true, max: 200 }, // max REQUIRED
+      { name: "qty",     type: "number", min: 0 },
+      { name: "created", type: "autodate", onCreate: true, onUpdate: false },
+      { name: "updated", type: "autodate", onCreate: true, onUpdate: true },
+    ],
+    indexes: ["CREATE UNIQUE INDEX `idx_widgets_label` ON `widgets` (`label`)"],
+  })
+  app.save(c)
+}, (app) => {
+  app.delete(app.findCollectionByNameOrId("widgets"))   // down
+})
+```
+
+Rules:
+- The callback receives a **transactional** app — throwing rolls the file back.
+- Migrations are embedded/applied on boot; `migrate up` applies pending ones.
+- After changing a collection via the Admin UI, run `make collections` to snapshot it.
+- **Extend** built-in collections (`users`) with `app.findCollectionByNameOrId(...)`
+  then `fields.add(...)`; do **not** re-create them (name must be unique).
+- Adding a new base collection does **not** add `created`/`updated` — declare them as
+  `autodate` fields explicitly or your index on `created` will fail.
+
+---
+
+## 6. Hooks (`base/pb_hooks/`)
+
+Files matching `*.pb.js` load in filename order. `_`-prefixed files are ignored.
+
+### Handler contract
+
+```js
+onRecordCreateRequest((e) => {
+  e.record.set("status", "draft")
+  e.next()                       // continue the chain — required
+}, "posts")                      // optional tag: collection name(s)/id(s)
+```
+
+- Omit `e.next()` → the operation is aborted.
+- Throw `new BadRequestError("msg")` (400), `ForbiddenError` (403), `NotFoundError` (404),
+  `UnauthorizedError` (401), `TooManyRequestsError` (429), `InternalServerError` (500).
+- `...AfterSuccess` hooks fire **after commit** and take **no** `e.next()`.
+- `onRecordsListRequest` / `onRecordViewRequest` can rewrite a response.
+- `onRecordEnrich` runs per record during API responses (add computed fields).
+
+### Globals
+
+`$app`, `$apis`, `$security`, `$os`, `$http`, `$filesystem`, `$dbx`, plus top-level
+functions `routerAdd`, `routerUse`, `cronAdd`, `cronRemove`, `migrate`, `sleep`,
+`toString`, `toBytes`, `unmarshal`, `arrayOf`, and the field/model classes.
+
+### Custom routes
+
+**Routes live in `base/pb_hooks/lib/api.js`**, not in the hook file. Each entry in the `ROUTES` table
+carries both the handler and its OpenAPI metadata; `20_custom_routes.pb.js` is a two-line loader
+(`require(`${__hooks}/lib/api.js`).register(routerAdd)`) and `30_api_docs.pb.js` documents the same
+table, so the spec cannot drift from behaviour. Built-ins this repo adds: `/healthz`, `/api/stats`,
+`/api/activity`, `/api/me`, `/api/schema`, `/openapi.json`.
+
+```js
+// lib/api.js — add an entry, and it is registered AND documented
+{ method: "GET", path: "/api/thing", summary: "Thing", auth: true,
+  handler: (e) => e.json(200, { ok: true }) }     // handler sees globals + locals only
+```
+
+At the raw level the API is still:
+
+```js
+routerAdd("GET", "/api/me", (e) => e.json(200, { id: e.auth.id }), $apis.requireAuth())
+routerAdd("GET", "/{path...}", $apis.static("./pb_public", true))
+```
+
+Middlewares: `$apis.requireAuth()`, `requireSuperuserAuth()`, `requireGuestOnly()`,
+`requireSuperuserOrOwnerAuth(...)`, `gzip()`, `bodyLimit(...)`, `skipSuccessActivityLog()`,
+`activityLogger(...)`, `enrichRecord(...)`.
+
+### Database in JS
+
+```js
+$app.findRecordById("posts", id)                   // throws if missing
+$app.findFirstRecordByFilter("posts", "slug={:s}", { s: slug })  // THROWS when no match
+$app.findRecordsByFilter("posts", "status='published'", "-created", 20, 0, {})
+$app.countRecords("posts", $dbx.exp("status={:s}", { s: "published" }))
+$app.save(rec); $app.delete(rec)
+$app.runInTransaction((txApp) => { /* ... */ })
+$app.db().newQuery("SELECT ...").bind({}).one() / .all()
+```
+
+### Cron
+
+```js
+cronAdd("job_id", "0 3 * * *", () => { /* local server timezone */ })
+cronRemove("job_id")
+```
+
+> There is **no `$jobs` namespace in the JSVM** — that scheduler is Go-only. Use `cronAdd`.
+
+### ⚠️ Scope trap — read before writing any handler
+
+Each handler is serialized and run in its **own pooled goja VM**. A file-top-level `const`,
+`let`, or `function` is **not visible inside the handler**:
+
+```js
+// BROKEN — ReferenceError at request time
+const URL = $os.getenv("POST_WEBHOOK_URL")
+onRecordAfterCreateSuccess((e) => { $http.send({ url: URL }) }, "posts")
+
+// CORRECT — resolve everything inside the handler
+onRecordAfterCreateSuccess((e) => { $http.send({ url: $os.getenv("POST_WEBHOOK_URL") }) }, "posts")
+```
+
+Registering the hook conditionally at the top level is fine (`if ($os.getenv("X")) onRecord(...)`)
+because that code runs at load — but every *value the handler uses* must be computed inside it.
+This bites hardest on env-gated code: it stays silent until someone sets the variable.
+
+### Shared helpers: `base/pb_hooks/lib/` + `require()` (the idiomatic fix)
+
+For real reusable logic, put it in a plain `.js` module and require it **inside** the handler.
+`*.pb.js` files are *registration entry points*; ordinary `.js` files are modules.
+
+```js
+// base/pb_hooks/lib/slug.js
+module.exports = { slugify: (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, "-") }
+
+// base/pb_hooks/10_record_hooks.pb.js — require inside the handler
+onRecordCreateRequest((e) => {
+  const { slugify } = require(`${__hooks}/lib/slug.js`)
+  e.record.set("slug", slugify(e.record.getString("title")))
+  e.next()
+}, "posts")
+```
+
+- Use **`${__hooks}`** (absolute path to the hooks dir). A relative path resolves from the
+  **process working directory**, not from `base/pb_hooks/`, so it breaks when started elsewhere.
+  `__hooks` is a real global (verified: `typeof __hooks === "string"`).
+- Modules share **one registry** for the process — keep them **stateless** (pure functions).
+  Per-request state in a module bleeds across requests under concurrency.
+- `module.exports` / `require` are CommonJS. The runtime is **Goja, not Node**.
+
+### Goja is not Node — verified limits (v0.40.4)
+
+| Probe | Result |
+|---|---|
+| `typeof fetch` | **`undefined`** — no global `fetch`; use `$http.send()` |
+| `typeof setTimeout` | **`undefined`** |
+| `require("lodash")` (npm) | **throws** `GoError: Invalid module` |
+| `require("fs")` (Node core) | **throws** `GoError: Invalid module` |
+| `async`/`await` syntax | parses, but there is no event loop — keep handlers synchronous |
+| `typeof __hooks` | `"string"` |
+
+**What *does* work** (all verified live): arrow functions, `const`/`let`, template literals,
+spread + object spread, destructuring, default params, optional chaining `?.`, nullish `??`,
+`for...of`, `Map`/`Set`, `class`, and the modern stdlib you'd expect — `Array.from`,
+`Object.entries`, `Array.prototype.includes`, `String.prototype.padStart`/`normalize`,
+`Number.isInteger`. So the runtime is **modern syntax, limited APIs**: don't avoid ES2020 syntax,
+but do avoid `fetch`/`setTimeout`/npm modules. `Promise` exists as a constructor, but with no
+event loop it won't settle from real I/O — keep I/O synchronous (`$http.send()`).
+
+Practical consequence: an npm-only "utility" package is not available. Write the helper in
+`base/pb_hooks/lib/` yourself, or use the matching `$`-global / `$dbx` / `$security` API.
+
+### Outbound HTTP
+
+```js
+const res = $http.send({ method: "POST", url, headers, body, timeout: 10 })
+// res.statusCode, res.headers, res.cookies, res.json, res.body(Array<number>)
+```
+
+---
+
+## 7. Frontend
+
+`base/pb_public/index.html` loads the **ohno** UI kit (`vendor/ohno/*.min.css` + `ohno.min.js`),
+then `vendor/pocketbase.umd.js`, `vendor/vue.global.prod.js` and `assets/app.js`. The page is a
+single-page app with a sidebar shell and four tabs (Overview, Posts, Schema, API); modals, the ⌘K
+palette and table sort/filter are handled by ohno's **delegated** listeners, so they keep working
+on Vue-rendered markup. `assets/app.css` holds only layout tweaks ohno does not own.
+
+ohno is classless-first: native elements are styled with no classes; use its classes
+(`.card`, `.badge`, `.btn-primary`, `.table-wrap`, `data-modal-open`, `data-tabs`, …) and never
+invent new ones. Realtime via `pb.collection('posts').subscribe('*', cb)`. Call
+`pb.autoCancellation(false)` in reactive UIs so concurrent reads aren't aborted.
+
+```js
+const pb = new PocketBase(location.origin);
+const list = await pb.collection('posts').getFullList({
+  sort: '-created',
+  filter: pb.filter('status = {:s}', { s: 'published' }),   // safe binding
+});
+pb.files.getURL(record, record.cover, { thumb: '400x300' });  // thumbnails
+```
+
+> ⚠️ The vendored ohno build ships only the *mobile* override for `.grid-2/3/4`
+> (`.grid-* { grid-template-columns: 1fr }` at `max-width:767.98px`), so those helpers collapse
+> to one column at every width. `assets/app.css` re-adds the desktop base
+> (`display:grid` + a `min-width:768px` column rule).
+
+> **ohno is a default, not a lock-in.** The server (`pb_hooks/`, `pb_migrations/`, `scripts/`) never
+> references ohno or Vue, and all six `OHNO.*` calls in `assets/app.js` are guarded
+> (`if (window.OHNO)`), so the page still renders if the kit is removed. The swap surface is four
+> frontend files — `index.html`, `assets/app.css`, `assets/app.js`, `docs/licenses/index.html` —
+> and `/docs/` (Scalar) is independent of ohno entirely.
+
+---
+
+## 8. Known traps (read before debugging)
+
+> Abridged copy for HTTP readers. The canonical, numbered table (30 rows, stable numbering
+> for cross-references) lives in the repo-root `AGENTS.md` § "Traps" — numbers here may differ.
+
+1. **`TextField.Max` defaults to 5000.** Leave it unset and large writes fail validation,
+   rejecting the whole record. Always set `max`.
+2. **API rules**: `""` (empty string) = **public** (rule disabled, guests allowed), `null` = **superuser-only**, expression = per-request filter. An unsatisfied rule **hides** the record rather than returning 403: **list → 200** (filtered to what you may see), **view/update/delete → 404**, **create → 400**. Use expressions — not `""` — for update/delete unless public write is intended.
+3. **New base collections get no `created`/`updated`.** Declare `autodate` fields yourself.
+4. **`record.get("dateField")` returns a `DateTime` object**, truthy even when empty.
+   Use `getString()` or `getDateTime().isZero()`.
+5. **Dates persist as `"YYYY-MM-DD HH:MM:SS.sssZ"`** (a space, not ISO's `T`). An ISO
+   string silently fails to persist.
+6. **A handler cannot see file/module top-level scope.** Each handler runs in its own pooled VM.
+   Referencing module scope throws `ReferenceError: <name> is not defined` at request time (the
+   router returns a bare 400). `require(`${__hooks}/lib/x.js`)` **inside** the handler — a function
+   obtained that way keeps its own module closure.
+7. **The default `users` auth collection already exists.** Extend it; re-creating it fails
+   with "Collection name must be unique".
+8. **`findFirstRecordByFilter` throws on no match.** Capture the result outside try/catch.
+9. **`migrate create` / `migrate down` / `migrate collections` are interactive.** Pipe `echo y |`
+   (the Makefile targets already do).
+10. **`migrate create` writes `.js`, not `.go`,** by default in v0.40.
+11. **`select` fields need both `maxSelect` and non-empty `values`.** `maxSelect` must be
+    ≤ 1 unless the field is explicitly multiple.
+12. **Superuser emails must contain a dot** (`admin@local.local`, not `admin@local`).
+13. **The `Authorization` header** takes the raw token (`Authorization: <token>`, what the SDK sends); a `Bearer ` prefix also works.
+14. **`base/pb_data/` is runtime state.** Never commit it; back it up with `scripts/backup.sh`.
+    A plain `tar pb_data` while the server writes can tear the DB (WAL keeps readers
+    consistent, it does not make a multi-file copy atomic) — `backup.sh` snapshots each
+    `*.db` through `sqlite3 .backup` instead, so the archive is a consistent point-in-time image.
+15. **Handlers run isolated.** Each `pb_hooks` handler executes in its own pooled goja VM —
+    file-top-level constants and helper functions are **not** visible inside it
+    (`ReferenceError: topHelper is not defined`). Inline the code or
+    `require(`${__hooks}/lib/x.js`)` *inside* the handler.
+16. **A migration applied while `serve` runs isn't picked up** until restart — the new
+    collection 404s in the running process. Restart after a manual `migrate up/down`.
+17. **Counts are not free.** Add `skipTotal=1` when you don't need a total (it then returns
+    `-1`). `perPage` clamps to **1000**; `perPage=0` resets to 30.
+18. **View collections emit no realtime events** — only base/auth collections do.
+19. **`@collection.*` in `filter` is superuser-only** (guest → 403) and forces a join.
+20. **`/api/batch` is off by default** and accepts only record create/update/upsert/delete.
+21. **`field.type` is a Go method, not a string.** Call `f.type()`; never put it in an `e.json()`
+    body (the response is then emitted **truncated**). Read canonical metadata with
+    `JSON.parse(toString(collection.marshalJSON()))` (`marshalJSON()` returns a Go `[]byte`).
+22. **`/openapi.json` is generated, not a file.** Do not look for it in `base/pb_public/` — it is a
+    route in `base/pb_hooks/30_api_docs.pb.js`, built from the DB + the `ROUTES` table.
+
+---
+
+## 9. Production readiness (short form)
+
+Full guide (repo path, not served over HTTP): `.agents/reference/PRODUCTION.md`.
+
+PocketBase is a **single-server app with embedded SQLite** — not a managed, horizontally
+scalable DB. Design for one instance. The three real risks: **permissive rules**, **untested
+restores**, **"it deployed" ≠ "it's safe"**.
+
+- **Rules are the boundary.** Locked by default (`null`); `""` = public; expression = filter+scope.
+  Owner pattern: `@request.auth.id != "" && owner = @request.auth.id`. Test rules as real users
+  (member / non-member / guest) through the API, including ownership/relation tampering.
+- **Settings ship wrong.** ✅ A fresh DB has `appName="Acme"`, `rateLimits.enabled=false`, SMTP
+  `smtp.example.com`. This repo pins `appName`, `rateLimits.enabled=true`, `batch.enabled=true`
+  in `1791215000_init_schema.js`.
+- **Backups:** ✅ `scripts/backup.sh` uses `sqlite3 .backup` per DB (not a raw `tar` while writing
+  — that can tear it). Keep one copy **off-host**, and **test a restore**. Built-in snapshots
+  include local uploads but **not** S3 files.
+- **Security:** HTTPS (+ trusted proxy headers), rate limits ON, tight CORS (CORS ≠ authz),
+  real SMTP provider, 32-char `PB_ENCRYPTION_KEY`, superuser MFA/IP restriction, file URLs are
+  **not** authorization.
+- **Scaling wall:** one SQLite DB per instance; autoscaling can spawn a second copy/database.
+  User-count is a bad metric — concurrent load and query shape matter. Migrate on a **requirement**
+  (HA / distributed writes / multiple sources), not a number.
+- **Logic placement:** hooks = request/record scope. Goja is **not Node** (no `fetch`/`setTimeout`,
+  npm `require` throws). Heavy/long jobs → Go or a separate worker; in-JS background = `cronAdd`.
+  Keep `base/pb_hooks/lib/` modules stateless, and resolve module scope with `require()` **inside** the
+  handler (a handler cannot see file-level declarations).
+
+---
+
+## 10. Agent checklist
+
+- [ ] Change schema only through a migration; run `make migrate`; verify with
+      `sqlite3 base/pb_data/data.db "select name from _collections"`.
+- [ ] Set `max` on every text field; add `autodate` created/updated to new base collections.
+- [ ] Rules use the `null` / `""` / expression distinction deliberately.
+- [ ] After editing `base/pb_hooks/*.pb.js`, the server hot-reloads (dev); check the log for
+      `ReferenceError`/hook errors.
+- [ ] Exercise the actual endpoint with `curl` before claiming it works.
+- [ ] Keep `/llms.txt` and this file in sync when routes or fields change. (`/openapi.json`
+      updates itself — it is generated, never edited.)

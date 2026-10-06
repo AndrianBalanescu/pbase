@@ -1,0 +1,1763 @@
+# PocketBase Complete JSVM Reference
+
+Comprehensive PocketBase JavaScript Virtual Machine (JSVM) documentation with ALL available hooks, functions, APIs, and features. This reference is based on official PocketBase documentation and provides complete coverage of server-side JavaScript capabilities.
+
+**Source**: Official PocketBase Documentation (https://pocketbase.io/docs/)
+**Last Updated**: Based on current PocketBase documentation
+**Version Compatibility**: Always verify hook availability with your PocketBase version
+
+---
+
+## Table of Contents
+
+1. [JSVM Overview](#jsvm-overview)
+2. [App Hooks](#app-hooks)
+3. [Record Model Hooks](#record-model-hooks)
+4. [Collection Model Hooks](#collection-model-hooks)
+5. [Request Hooks](#request-hooks)
+6. [Authentication Hooks](#authentication-hooks)
+7. [Mailer Hooks](#mailer-hooks)
+8. [Realtime Hooks](#realtime-hooks)
+9. [Custom Routing](#custom-routing)
+10. [Database Operations](#database-operations)
+11. [Available APIs](#available-apis)
+12. [Utility Functions](#utility-functions)
+13. [Error Handling](#error-handling)
+14. [Best Practices](#best-practices)
+
+---
+
+## JSVM Overview
+
+PocketBase includes a JavaScript Virtual Machine that allows you to extend backend functionality with custom server-side JavaScript. All hooks follow the pattern `function(e) {}` and require calling `e.next()` to continue execution.
+
+### Hook Files Structure
+```
+pb_hooks/
+├── main.pb.js         # Main hooks file
+├── auth.pb.js         # Authentication hooks  
+├── email.pb.js        # Email customization
+├── collections.pb.js  # Collection hooks
+├── routes.pb.js       # Custom API routes
+└── utils.pb.js        # Utility functions
+```
+
+---
+
+## App Hooks
+
+Application lifecycle and system-level hooks.
+
+### onBootstrap
+Initialize application resources when PocketBase starts.
+```javascript
+onBootstrap((e) => {
+    console.log("PocketBase is starting up");
+    // Initialize global variables, connections, etc.
+    e.next();
+});
+```
+
+### onSettingsReload
+Triggered when application settings are updated.
+```javascript
+onSettingsReload((e) => {
+    console.log("Settings have been reloaded");
+    // React to setting changes
+    e.next();
+});
+```
+
+### onBackupCreate
+Called during backup creation process.
+```javascript
+onBackupCreate((e) => {
+    console.log("Creating backup");
+    // Add custom backup logic
+    e.next();
+});
+```
+
+### onBackupRestore
+Called during backup restoration process.
+```javascript
+onBackupRestore((e) => {
+    console.log("Restoring from backup");
+    // Add custom restoration logic
+    e.next();
+});
+```
+
+### onTerminate
+Triggered when application is shutting down.
+```javascript
+onTerminate((e) => {
+    console.log("PocketBase is shutting down");
+    // Cleanup resources, close connections
+    e.next();
+});
+```
+
+---
+
+## Record Model Hooks
+
+Hooks for record operations (create, update, delete, validate).
+
+### Record Creation Hooks
+
+#### onRecordCreate
+Called before record creation, allows modification of record data.
+```javascript
+onRecordCreate((e) => {
+    console.log(`Creating record in ${e.collection.name}`);
+    
+    // Modify record before creation
+    if (e.collection.name === "users") {
+        e.record.set("created_ip", e.request?.remoteAddr || "unknown");
+        e.record.set("status", "active");
+    }
+    
+    e.next();
+}, "users"); // Optional collection scope
+```
+
+#### onRecordCreateExecute
+Called during the actual record creation execution.
+```javascript
+onRecordCreateExecute((e) => {
+    console.log("Record creation executing");
+    e.next();
+});
+```
+
+#### onRecordAfterCreateSuccess
+Called after successful record creation.
+```javascript
+onRecordAfterCreateSuccess((e) => {
+    console.log(`Record created successfully: ${e.record.id}`);
+    
+    // Post-creation actions
+    if (e.collection.name === "orders") {
+        // Update inventory, send notifications, etc.
+        updateInventory(e.record);
+        sendOrderConfirmation(e.record);
+    }
+    
+    e.next();
+}, "orders");
+```
+
+#### onRecordAfterCreateError
+Called when record creation fails.
+```javascript
+onRecordAfterCreateError((e) => {
+    console.log("Record creation failed:", e.error);
+    // Log error, send alerts, etc.
+    e.next();
+});
+```
+
+### Record Update Hooks
+
+#### onRecordUpdate
+Called before record update, allows modification of record data.
+```javascript
+onRecordUpdate((e) => {
+    console.log(`Updating record in ${e.collection.name}`);
+    
+    // Add update metadata
+    e.record.set("updated_at", new Date().toISOString());
+    e.record.set("updated_by", e.request?.auth?.id || null);
+    
+    e.next();
+});
+```
+
+#### onRecordUpdateExecute
+Called during the actual record update execution.
+```javascript
+onRecordUpdateExecute((e) => {
+    console.log("Record update executing");
+    e.next();
+});
+```
+
+#### onRecordAfterUpdateSuccess
+Called after successful record update.
+```javascript
+onRecordAfterUpdateSuccess((e) => {
+    console.log(`Record updated successfully: ${e.record.id}`);
+    
+    // Post-update actions
+    if (e.collection.name === "products") {
+        // Clear cache, update search index, etc.
+        clearProductCache(e.record.id);
+    }
+    
+    e.next();
+});
+```
+
+#### onRecordAfterUpdateError
+Called when record update fails.
+```javascript
+onRecordAfterUpdateError((e) => {
+    console.log("Record update failed:", e.error);
+    e.next();
+});
+```
+
+### Record Deletion Hooks
+
+#### onRecordDelete
+Called before record deletion.
+```javascript
+onRecordDelete((e) => {
+    console.log(`Deleting record from ${e.collection.name}`);
+    
+    // Pre-deletion checks
+    if (e.collection.name === "users") {
+        // Archive user data before deletion
+        archiveUserData(e.record);
+    }
+    
+    e.next();
+});
+```
+
+#### onRecordDeleteExecute
+Called during the actual record deletion execution.
+```javascript
+onRecordDeleteExecute((e) => {
+    console.log("Record deletion executing");
+    e.next();
+});
+```
+
+#### onRecordAfterDeleteSuccess
+Called after successful record deletion.
+```javascript
+onRecordAfterDeleteSuccess((e) => {
+    console.log(`Record deleted successfully: ${e.record.id}`);
+    
+    // Post-deletion cleanup
+    cleanupRelatedData(e.record.id);
+    
+    e.next();
+});
+```
+
+#### onRecordAfterDeleteError
+Called when record deletion fails.
+```javascript
+onRecordAfterDeleteError((e) => {
+    console.log("Record deletion failed:", e.error);
+    e.next();
+});
+```
+
+### Record Validation and Enrichment
+
+#### onRecordValidate
+Custom validation logic for records.
+```javascript
+onRecordValidate((e) => {
+    if (e.collection.name === "users") {
+        // Custom validation
+        if (!e.record.get("email")) {
+            throw new BadRequestError("Email is required");
+        }
+        
+        if (e.record.get("age") < 18) {
+            throw new BadRequestError("Must be 18 or older");
+        }
+    }
+    
+    e.next();
+});
+```
+
+#### onRecordEnrich
+Add computed fields or modify record data before returning to client.
+```javascript
+onRecordEnrich((e) => {
+    if (e.collection.name === "users") {
+        // Add computed fields
+        const firstName = e.record.get("first_name") || "";
+        const lastName = e.record.get("last_name") || "";
+        e.record.set("full_name", `${firstName} ${lastName}`.trim());
+        
+        // Add calculated fields
+        const createdDate = new Date(e.record.created);
+        const now = new Date();
+        const daysSinceCreated = Math.floor((now - createdDate) / (1000 * 60 * 60 * 24));
+        e.record.set("days_since_created", daysSinceCreated);
+    }
+    
+    e.next();
+});
+```
+
+---
+
+## Collection Model Hooks
+
+Hooks for collection-level operations.
+
+### onCollectionValidate
+Validate collection schema changes.
+```javascript
+onCollectionValidate((e) => {
+    console.log(`Validating collection: ${e.collection.name}`);
+    
+    // Custom collection validation logic
+    if (e.collection.name === "critical_data") {
+        // Ensure critical collections have specific fields
+        const requiredFields = ["created", "updated", "owner"];
+        // Validation logic here
+    }
+    
+    e.next();
+});
+```
+
+### onCollectionCreate
+Called when a new collection is created.
+```javascript
+onCollectionCreate((e) => {
+    console.log(`Collection created: ${e.collection.name}`);
+    
+    // Auto-setup for new collections
+    if (e.collection.type === "base") {
+        // Add default fields, rules, etc.
+    }
+    
+    e.next();
+});
+```
+
+### onCollectionUpdate
+Called when a collection is updated.
+```javascript
+onCollectionUpdate((e) => {
+    console.log(`Collection updated: ${e.collection.name}`);
+    
+    // Handle schema changes
+    migrateExistingData(e.collection);
+    
+    e.next();
+});
+```
+
+### onCollectionDelete
+Called when a collection is deleted.
+```javascript
+onCollectionDelete((e) => {
+    console.log(`Collection deleted: ${e.collection.name}`);
+    
+    // Cleanup related data
+    cleanupCollectionReferences(e.collection.name);
+    
+    e.next();
+});
+```
+
+---
+
+## Request Hooks
+
+HTTP request-level hooks for API operations.
+
+### Record CRUD Request Hooks
+
+#### onRecordsListRequest
+Called when listing records via API.
+```javascript
+onRecordsListRequest((e) => {
+    console.log(`Records list requested for: ${e.collection.name}`);
+    
+    // Add custom filtering, logging, etc.
+    logApiAccess(e.request, "list", e.collection.name);
+    
+    e.next();
+});
+```
+
+#### onRecordViewRequest
+Called when viewing a single record via API.
+```javascript
+onRecordViewRequest((e) => {
+    console.log(`Record view requested: ${e.record.id}`);
+    
+    // Track record views
+    incrementViewCount(e.record.id);
+    
+    e.next();
+});
+```
+
+#### onRecordCreateRequest
+Called when creating a record via API.
+```javascript
+onRecordCreateRequest((e) => {
+    console.log(`Record create request for: ${e.collection.name}`);
+    
+    // Pre-creation API validation
+    validateApiRequest(e.request);
+    
+    e.next();
+});
+```
+
+#### onRecordUpdateRequest
+Called when updating a record via API.
+```javascript
+onRecordUpdateRequest((e) => {
+    console.log(`Record update request: ${e.record.id}`);
+    
+    // API-level update validation
+    validateUpdatePermissions(e.request, e.record);
+    
+    e.next();
+});
+```
+
+#### onRecordDeleteRequest
+Called when deleting a record via API.
+```javascript
+onRecordDeleteRequest((e) => {
+    console.log(`Record delete request: ${e.record.id}`);
+    
+    // API-level deletion checks
+    validateDeletePermissions(e.request, e.record);
+    
+    e.next();
+});
+```
+
+### Other Request Hooks
+
+#### onBatchRequest
+Called for batch API operations.
+```javascript
+onBatchRequest((e) => {
+    console.log("Batch request received");
+    
+    // Handle batch operations
+    validateBatchSize(e.request);
+    
+    e.next();
+});
+```
+
+#### onFileDownloadRequest
+Called when files are downloaded.
+```javascript
+onFileDownloadRequest((e) => {
+    console.log(`File download requested: ${e.record.id}`);
+    
+    // Track downloads, validate access
+    logFileAccess(e.record, e.request);
+    
+    e.next();
+});
+```
+
+#### onFileTokenRequest
+Called when file access tokens are requested.
+```javascript
+onFileTokenRequest((e) => {
+    console.log("File token requested");
+    
+    // Custom file access logic
+    validateFileAccess(e.request);
+    
+    e.next();
+});
+```
+
+---
+
+## Authentication Hooks
+
+Hooks for authentication and authorization operations.
+
+### General Authentication
+
+#### onRecordAuthRequest
+General authentication request hook.
+```javascript
+onRecordAuthRequest((e) => {
+    console.log("Authentication request received");
+    
+    // General auth logging and validation
+    logAuthAttempt(e.request);
+    
+    e.next();
+});
+```
+
+#### onRecordAuthRefreshRequest
+Called when auth tokens are refreshed.
+```javascript
+onRecordAuthRefreshRequest((e) => {
+    console.log("Auth token refresh requested");
+    
+    // Track token refreshes
+    logTokenRefresh(e.request);
+    
+    e.next();
+});
+```
+
+### Password Authentication
+
+#### onRecordAuthWithPasswordRequest
+Called for password-based authentication.
+```javascript
+onRecordAuthWithPasswordRequest((e) => {
+    const email = e.record?.get("email") || "unknown";
+    const clientIP = e.request?.remoteAddr || "unknown";
+    
+    console.log(`Password auth attempt: ${email} from ${clientIP}`);
+    
+    // Rate limiting logic
+    checkRateLimit(email, clientIP);
+    
+    // Security logging
+    logPasswordAttempt(email, clientIP);
+    
+    e.next();
+}, "users");
+```
+
+### OAuth2 Authentication
+
+#### onRecordAuthWithOAuth2Request
+Called for OAuth2 authentication.
+```javascript
+onRecordAuthWithOAuth2Request((e) => {
+    console.log(`OAuth2 auth with provider: ${e.providerName}`);
+    
+    // Custom OAuth2 handling
+    handleOAuth2Provider(e.providerName, e.record);
+    
+    e.next();
+});
+```
+
+### OTP Authentication
+
+#### onRecordAuthWithOTPRequest
+Called for OTP (One-Time Password) authentication.
+```javascript
+onRecordAuthWithOTPRequest((e) => {
+    console.log("OTP authentication requested");
+    
+    // Custom OTP validation
+    validateOTPAttempt(e.record, e.request);
+    
+    e.next();
+});
+```
+
+#### onRecordRequestOTPRequest
+Called when OTP is requested.
+```javascript
+onRecordRequestOTPRequest((e) => {
+    console.log("OTP generation requested");
+    
+    // Custom OTP generation logic
+    generateCustomOTP(e.record);
+    
+    e.next();
+});
+```
+
+### Password Reset
+
+#### onRecordRequestPasswordResetRequest
+Called when password reset is requested.
+```javascript
+onRecordRequestPasswordResetRequest((e) => {
+    console.log("Password reset requested");
+    
+    // Security checks for password reset
+    validatePasswordResetRequest(e.record, e.request);
+    
+    e.next();
+});
+```
+
+#### onRecordConfirmPasswordResetRequest
+Called when password reset is confirmed.
+```javascript
+onRecordConfirmPasswordResetRequest((e) => {
+    console.log("Password reset confirmed");
+    
+    // Post-reset actions
+    logPasswordReset(e.record);
+    invalidateAllSessions(e.record);
+    
+    e.next();
+});
+```
+
+### Email Verification
+
+#### onRecordRequestVerificationRequest
+Called when email verification is requested.
+```javascript
+onRecordRequestVerificationRequest((e) => {
+    console.log("Email verification requested");
+    
+    // Custom verification logic
+    generateVerificationToken(e.record);
+    
+    e.next();
+});
+```
+
+#### onRecordConfirmVerificationRequest
+Called when email verification is confirmed.
+```javascript
+onRecordConfirmVerificationRequest((e) => {
+    console.log("Email verification confirmed");
+    
+    // Post-verification actions
+    activateUserAccount(e.record);
+    sendWelcomeEmail(e.record);
+    
+    e.next();
+});
+```
+
+### Email Change
+
+#### onRecordRequestEmailChangeRequest
+Called when email change is requested.
+```javascript
+onRecordRequestEmailChangeRequest((e) => {
+    console.log("Email change requested");
+    
+    // Validate email change request
+    validateEmailChangeRequest(e.record, e.request);
+    
+    e.next();
+});
+```
+
+#### onRecordConfirmEmailChangeRequest
+Called when email change is confirmed.
+```javascript
+onRecordConfirmEmailChangeRequest((e) => {
+    console.log("Email change confirmed");
+    
+    // Post-email-change actions
+    logEmailChange(e.record);
+    updateRelatedRecords(e.record);
+    
+    e.next();
+});
+```
+
+---
+
+## Mailer Hooks
+
+Hooks for email customization and handling.
+
+### onMailerSend
+General email sending hook - intercepts all outgoing emails.
+```javascript
+onMailerSend((e) => {
+    console.log(`Sending email to: ${e.message.to.join(", ")}`);
+    console.log(`Subject: ${e.message.subject}`);
+    
+    // Customize email content
+    e.message.subject = `[GRP] ${e.message.subject}`;
+    
+    // Add custom headers
+    e.message.headers = e.message.headers || {};
+    e.message.headers["X-Company"] = "Grand Rapids Print";
+    
+    // Log email sending
+    logEmailSent(e.message);
+    
+    e.next();
+});
+```
+
+### Specific Email Type Hooks
+
+#### onMailerRecordAuthAlertSend
+Customize authentication alert emails.
+```javascript
+onMailerRecordAuthAlertSend((e) => {
+    console.log("Sending auth alert email");
+    
+    // Customize auth alert content
+    e.message.subject = "Security Alert - New Login Detected";
+    e.message.html = customAuthAlertTemplate(e.record, e.meta);
+    
+    e.next();
+});
+```
+
+#### onMailerRecordPasswordResetSend
+Customize password reset emails.
+```javascript
+onMailerRecordPasswordResetSend((e) => {
+    console.log("Sending password reset email");
+    
+    // Brand the password reset email
+    e.message.subject = "Reset Your GRP Account Password";
+    e.message.html = `
+        <div style="font-family: Arial, sans-serif;">
+            <h2>Password Reset Request</h2>
+            <p>Hello ${e.record.get("name") || e.record.get("email")},</p>
+            <p>You requested a password reset for your Grand Rapids Print account.</p>
+            <p><a href="${e.meta.actionUrl}" style="background: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Reset Password</a></p>
+            <p>If you didn't request this, please ignore this email.</p>
+            <p>Best regards,<br>Grand Rapids Print Team</p>
+        </div>
+    `;
+    
+    e.next();
+});
+```
+
+#### onMailerRecordVerificationSend
+Customize email verification emails.
+```javascript
+onMailerRecordVerificationSend((e) => {
+    console.log("Sending verification email");
+    
+    e.message.subject = "Verify Your GRP Account Email";
+    e.message.html = customVerificationTemplate(e.record, e.meta.actionUrl);
+    
+    e.next();
+});
+```
+
+#### onMailerRecordEmailChangeSend
+Customize email change confirmation emails.
+```javascript
+onMailerRecordEmailChangeSend((e) => {
+    console.log("Sending email change confirmation");
+    
+    e.message.subject = "Confirm Your New Email Address";
+    e.message.html = customEmailChangeTemplate(e.record, e.meta);
+    
+    e.next();
+});
+```
+
+#### onMailerRecordOTPSend
+Customize OTP emails.
+```javascript
+onMailerRecordOTPSend((e) => {
+    console.log("Sending OTP email");
+    
+    e.message.subject = "Your GRP Verification Code";
+    e.message.html = customOTPTemplate(e.record, e.meta.otp);
+    
+    e.next();
+});
+```
+
+---
+
+## Realtime Hooks
+
+Hooks for realtime/WebSocket functionality.
+
+#### onRealtimeConnectRequest
+Called when clients connect to realtime.
+```javascript
+onRealtimeConnectRequest((e) => {
+    console.log("Realtime connection requested");
+    
+    // Validate realtime connection
+    validateRealtimeAccess(e.request);
+    
+    // Log connection
+    logRealtimeConnection(e.request);
+    
+    e.next();
+});
+```
+
+#### onRealtimeSubscribeRequest
+Called when clients subscribe to realtime channels.
+```javascript
+onRealtimeSubscribeRequest((e) => {
+    console.log(`Realtime subscription to: ${e.subscription}`);
+    
+    // Custom subscription validation
+    validateSubscription(e.subscription, e.request);
+    
+    e.next();
+});
+```
+
+#### onRealtimeMessageSend
+Called when realtime messages are sent.
+```javascript
+onRealtimeMessageSend((e) => {
+    console.log("Realtime message sending");
+    
+    // Filter or modify realtime messages
+    filterRealtimeMessage(e.message);
+    
+    e.next();
+});
+```
+
+---
+
+## Custom Routing
+
+Create custom API endpoints using the routing system.
+
+### Basic Route Registration
+
+#### GET Routes
+```javascript
+// Simple GET route
+routerAdd("GET", "/api/hello", (c) => {
+    return c.json(200, {
+        message: "Hello from PocketBase!",
+        timestamp: new Date().toISOString()
+    });
+});
+
+// GET with path parameters
+routerAdd("GET", "/api/hello/{name}", (c) => {
+    const name = c.request.pathValue("name");
+    return c.json(200, {
+        message: `Hello, ${name}!`
+    });
+});
+
+// GET with query parameters
+routerAdd("GET", "/api/search", (c) => {
+    const query = c.request.url.query().get("q");
+    const limit = c.request.url.query().get("limit") || "10";
+    
+    return c.json(200, {
+        query: query,
+        limit: parseInt(limit),
+        results: []
+    });
+});
+```
+
+#### POST Routes
+```javascript
+// POST with JSON data
+routerAdd("POST", "/api/contact", (c) => {
+    const data = $apis.requestInfo(c).data;
+    
+    // Validate required fields
+    if (!data.email || !data.message) {
+        return c.json(400, {
+            error: "Email and message are required"
+        });
+    }
+    
+    // Process contact form
+    console.log(`Contact from: ${data.email}`);
+    
+    // Save to database
+    const collection = $app.dao().findCollectionByNameOrId("contacts");
+    const record = new Record(collection);
+    record.set("email", data.email);
+    record.set("message", data.message);
+    record.set("created", new Date().toISOString());
+    
+    $app.dao().saveRecord(record);
+    
+    return c.json(200, {
+        success: true,
+        message: "Contact form submitted successfully"
+    });
+});
+```
+
+### Protected Routes
+
+#### Authentication Required
+```javascript
+// Route requiring authentication
+routerAdd("GET", "/api/profile", (c) => {
+    const info = $apis.requestInfo(c);
+    
+    if (!info.authRecord) {
+        return c.json(401, {
+            error: "Authentication required"
+        });
+    }
+    
+    return c.json(200, {
+        user: {
+            id: info.authRecord.id,
+            email: info.authRecord.get("email"),
+            name: info.authRecord.get("name"),
+            created: info.authRecord.created
+        }
+    });
+}, $apis.requireRecordAuth());
+
+// Superuser only route
+routerAdd("GET", "/api/admin/stats", (c) => {
+    // Get system statistics
+    const userCount = $app.dao().totalRecords("users");
+    const orderCount = $app.dao().totalRecords("orders");
+    
+    return c.json(200, {
+        users: userCount,
+        orders: orderCount,
+        server_time: new Date().toISOString()
+    });
+}, $apis.requireSuperuserAuth());
+```
+
+### File Handling Routes
+
+#### File Upload
+```javascript
+routerAdd("POST", "/api/upload", (c) => {
+    const data = $apis.requestInfo(c).data;
+    const file = data.file;
+    
+    if (!file) {
+        return c.json(400, { error: "No file provided" });
+    }
+    
+    // Validate file type
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+    if (!allowedTypes.includes(file.type)) {
+        return c.json(400, { error: "Invalid file type" });
+    }
+    
+    // Process file upload
+    console.log(`File uploaded: ${file.name}, Size: ${file.size} bytes`);
+    
+    // Save file metadata to database
+    const collection = $app.dao().findCollectionByNameOrId("files");
+    const record = new Record(collection);
+    record.set("filename", file.name);
+    record.set("size", file.size);
+    record.set("type", file.type);
+    record.set("uploaded_at", new Date().toISOString());
+    
+    $app.dao().saveRecord(record);
+    
+    return c.json(200, {
+        success: true,
+        filename: file.name,
+        size: file.size,
+        id: record.id
+    });
+});
+```
+
+#### File Download
+```javascript
+routerAdd("GET", "/api/download/{fileId}", (c) => {
+    const fileId = c.request.pathValue("fileId");
+    
+    try {
+        const record = $app.dao().findRecordById("files", fileId);
+        
+        // Check permissions
+        const info = $apis.requestInfo(c);
+        if (!canAccessFile(info.authRecord, record)) {
+            return c.json(403, { error: "Access denied" });
+        }
+        
+        // Serve the file
+        return c.fileFS(record.get("file"), "uploads");
+        
+    } catch (error) {
+        return c.json(404, { error: "File not found" });
+    }
+});
+```
+
+### Middleware Usage
+
+#### Global Middleware
+```javascript
+// Add CORS middleware globally
+routerUse((next) => {
+    return (c) => {
+        c.response.header().set("Access-Control-Allow-Origin", "*");
+        c.response.header().set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
+        c.response.header().set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+        
+        return next(c);
+    };
+});
+
+// Add request logging middleware
+routerUse((next) => {
+    return (c) => {
+        const start = Date.now();
+        const result = next(c);
+        const duration = Date.now() - start;
+        
+        console.log(`${c.request.method} ${c.request.url.path} - ${duration}ms`);
+        
+        return result;
+    };
+});
+```
+
+#### Route-Specific Middleware
+```javascript
+// Custom rate limiting middleware
+function rateLimitMiddleware(limit, window) {
+    const requests = new Map();
+    
+    return (next) => {
+        return (c) => {
+            const clientIP = c.request.header.get("X-Forwarded-For") || c.request.remoteAddr;
+            const now = Date.now();
+            const windowStart = now - window;
+            
+            // Clean old requests
+            const clientRequests = requests.get(clientIP) || [];
+            const recentRequests = clientRequests.filter(time => time > windowStart);
+            
+            if (recentRequests.length >= limit) {
+                return c.json(429, { error: "Too many requests" });
+            }
+            
+            recentRequests.push(now);
+            requests.set(clientIP, recentRequests);
+            
+            return next(c);
+        };
+    };
+}
+
+// Use rate limiting on specific route
+routerAdd("POST", "/api/sensitive", (c) => {
+    return c.json(200, { message: "Success" });
+}, rateLimitMiddleware(10, 60000)); // 10 requests per minute
+```
+
+---
+
+## Database Operations
+
+Direct database access using the query builder.
+
+### Basic Query Operations
+
+#### SELECT Queries
+```javascript
+// Simple select
+const users = $app.db()
+    .select("id", "name", "email")
+    .from("users")
+    .where($dbx.exp("active = true"))
+    .limit(10)
+    .all();
+
+// Select with joins
+const ordersWithUsers = $app.db()
+    .select("orders.*", "users.name as user_name")
+    .from("orders")
+    .leftJoin("users", $dbx.exp("users.id = orders.user_id"))
+    .where($dbx.exp("orders.status = 'completed'"))
+    .orderBy("orders.created DESC")
+    .all();
+
+// Select single record
+const user = $app.db()
+    .select("*")
+    .from("users")
+    .where($dbx.exp("email = {:email}", { email: "user@example.com" }))
+    .one();
+```
+
+#### INSERT, UPDATE, DELETE
+```javascript
+// Insert
+$app.db()
+    .insert("logs", {
+        "action": "user_login",
+        "user_id": userId,
+        "ip_address": clientIP,
+        "created": new Date().toISOString()
+    })
+    .execute();
+
+// Update
+$app.db()
+    .update("users", {
+        "last_login": new Date().toISOString(),
+        "login_count": $dbx.exp("login_count + 1")
+    })
+    .where($dbx.exp("id = {:id}", { id: userId }))
+    .execute();
+
+// Delete
+$app.db()
+    .delete("temp_files")
+    .where($dbx.exp("created < {:date}", { 
+        date: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString() 
+    }))
+    .execute();
+```
+
+### Advanced Query Features
+
+#### Complex WHERE Conditions
+```javascript
+// Multiple conditions with AND/OR
+const results = $app.db()
+    .select("*")
+    .from("products")
+    .where($dbx.and(
+        $dbx.exp("category = {:category}", { category: "electronics" }),
+        $dbx.or(
+            $dbx.exp("price < {:max_price}", { max_price: 100 }),
+            $dbx.exp("on_sale = true")
+        )
+    ))
+    .all();
+
+// Using IN operator
+const popularProducts = $app.db()
+    .select("*")
+    .from("products")
+    .where($dbx.in("id", [1, 2, 3, 4, 5]))
+    .all();
+
+// LIKE operator for text search
+const searchResults = $app.db()
+    .select("*")
+    .from("products")
+    .where($dbx.like("name", `%${searchTerm}%`))
+    .limit(20)
+    .all();
+```
+
+#### Aggregation and Grouping
+```javascript
+// Count records
+const userCount = $app.db()
+    .select("COUNT(*) as total")
+    .from("users")
+    .where($dbx.exp("active = true"))
+    .one();
+
+// Group by with aggregation
+const orderStats = $app.db()
+    .select("status", "COUNT(*) as count", "SUM(total) as revenue")
+    .from("orders")
+    .where($dbx.exp("created >= {:date}", { 
+        date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString() 
+    }))
+    .groupBy("status")
+    .all();
+```
+
+### Transactions
+```javascript
+// Run multiple operations in a transaction
+$app.runInTransaction((db) => {
+    // Deduct inventory
+    db.update("products", {
+        "stock": $dbx.exp("stock - {:quantity}", { quantity: orderQuantity })
+    })
+    .where($dbx.exp("id = {:id}", { id: productId }))
+    .execute();
+    
+    // Create order record
+    db.insert("orders", {
+        "user_id": userId,
+        "product_id": productId,
+        "quantity": orderQuantity,
+        "total": orderTotal,
+        "status": "pending",
+        "created": new Date().toISOString()
+    })
+    .execute();
+    
+    // Log the transaction
+    db.insert("activity_log", {
+        "action": "order_created",
+        "user_id": userId,
+        "details": `Order for ${orderQuantity} units of product ${productId}`,
+        "created": new Date().toISOString()
+    })
+    .execute();
+});
+```
+
+---
+
+## Available APIs
+
+PocketBase provides several built-in APIs for common operations.
+
+### $app API
+Main application instance providing access to core functionality.
+
+```javascript
+// Database access
+$app.db() // Query builder
+$app.dao() // Data Access Object
+
+// Application info
+$app.isBootstrapped() // Check if app is fully loaded
+$app.settings() // Get application settings
+
+// Utilities
+$app.newMailClient() // Create mail client
+$app.subscriptionsBroker() // Realtime subscriptions
+```
+
+### $apis API
+Collection of API utilities and helpers.
+
+```javascript
+// Request information
+$apis.requestInfo(c) // Get detailed request info
+$apis.recordAuthResponse(c, authRecord, authToken) // Standard auth response
+
+// Middleware
+$apis.requireAuth() // Require any authentication
+$apis.requireRecordAuth() // Require record authentication
+$apis.requireSuperuserAuth() // Require superuser authentication
+$apis.gzip() // GZIP compression middleware
+
+// Utilities
+$apis.enrichRecord(record, expands) // Enrich record with relations
+$apis.static(fs, enableIndexFallback) // Serve static files
+```
+
+### $dbx API
+Database expression builder for complex queries.
+
+```javascript
+// Expressions
+$dbx.exp(rawExpr, params) // Raw SQL expression
+$dbx.hashExp(data) // Convert object to WHERE conditions
+
+// Logical operators
+$dbx.and(...conditions) // AND multiple conditions
+$dbx.or(...conditions) // OR multiple conditions
+$dbx.not(condition) // NOT condition
+
+// Comparison operators
+$dbx.like(column, value) // LIKE operator
+$dbx.in(column, values) // IN operator
+```
+
+### $http API
+HTTP client for making external requests.
+
+```javascript
+// GET request
+const response = $http.send({
+    url: "https://api.example.com/data",
+    method: "GET",
+    headers: {
+        "Authorization": "Bearer " + token
+    }
+});
+
+// POST request
+const postResponse = $http.send({
+    url: "https://api.example.com/webhook",
+    method: "POST",
+    headers: {
+        "Content-Type": "application/json"
+    },
+    data: JSON.stringify({
+        event: "user_registered",
+        user_id: userId
+    })
+});
+```
+
+### $mails API
+Email utilities and helpers.
+
+```javascript
+// Send custom email
+$mails.send({
+    from: "noreply@yoursite.com",
+    to: ["user@example.com"],
+    subject: "Welcome!",
+    html: "<h1>Welcome to our service!</h1>",
+    text: "Welcome to our service!"
+});
+```
+
+### $os API
+Operating system utilities.
+
+```javascript
+// Environment variables
+const dbUrl = $os.getenv("DATABASE_URL");
+const isProduction = $os.getenv("NODE_ENV") === "production";
+
+// File system operations
+const fileExists = $os.stat("path/to/file");
+```
+
+### $security API
+Security and cryptographic utilities.
+
+```javascript
+// Generate random strings
+const randomToken = $security.randomString(32);
+const randomKey = $security.randomStringWithAlphabet(16, "0123456789ABCDEF");
+
+// Hashing
+const hashedPassword = $security.hash("user_password");
+const isValidPassword = $security.compare("user_password", hashedPassword);
+
+// JWT operations
+const jwtToken = $security.newJWT(payload, duration);
+const parsedJWT = $security.parseJWT(token);
+```
+
+---
+
+## Utility Functions
+
+Additional utility functions available in JSVM.
+
+### Cron Jobs
+```javascript
+// Schedule periodic tasks
+cronAdd("daily_cleanup", "0 2 * * *", () => {
+    console.log("Running daily cleanup...");
+    
+    // Clean up old logs
+    $app.db()
+        .delete("logs")
+        .where($dbx.exp("created < {:date}", {
+            date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+        }))
+        .execute();
+        
+    console.log("Daily cleanup completed");
+});
+
+// Remove scheduled task
+cronRemove("daily_cleanup");
+```
+
+### Sleep Function
+```javascript
+// Pause execution
+sleep(1000); // Sleep for 1 second
+
+// Useful for rate limiting or delays
+function processWithDelay(items) {
+    items.forEach((item, index) => {
+        processItem(item);
+        if (index < items.length - 1) {
+            sleep(100); // 100ms delay between items
+        }
+    });
+}
+```
+
+### Database Migrations
+```javascript
+// Create database migration
+migrate((db) => {
+    // Up migration - add new features
+    db.createTable("user_preferences", {
+        "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+        "user_id": "TEXT NOT NULL",
+        "theme": "TEXT DEFAULT 'light'",
+        "notifications": "BOOLEAN DEFAULT true",
+        "created": "TEXT NOT NULL",
+        "updated": "TEXT NOT NULL"
+    });
+    
+    db.createIndex("user_preferences", "idx_user_preferences_user_id", ["user_id"]);
+    
+}, (db) => {
+    // Down migration - rollback changes
+    db.dropTable("user_preferences");
+});
+```
+
+---
+
+## Error Handling
+
+PocketBase provides predefined error classes for common HTTP responses.
+
+### Built-in Error Classes
+```javascript
+// 400 Bad Request
+throw new BadRequestError("Invalid input data");
+
+// 401 Unauthorized
+throw new UnauthorizedError("Authentication required");
+
+// 403 Forbidden
+throw new ForbiddenError("Access denied");
+
+// 404 Not Found
+throw new NotFoundError("Resource not found");
+
+// 422 Unprocessable Entity
+throw new UnprocessableContentError("Validation failed");
+
+// 500 Internal Server Error
+throw new InternalServerError("Something went wrong");
+```
+
+### Custom Error Handling
+```javascript
+// In hooks
+onRecordCreate((e) => {
+    try {
+        // Risky operation
+        const result = performComplexOperation(e.record);
+        
+        if (!result.success) {
+            throw new BadRequestError(`Operation failed: ${result.error}`);
+        }
+        
+    } catch (error) {
+        console.log(`Error in record creation: ${error.message}`);
+        
+        // Re-throw with user-friendly message
+        if (error instanceof BadRequestError) {
+            throw error; // Keep the original error
+        } else {
+            throw new InternalServerError("An unexpected error occurred");
+        }
+    }
+    
+    e.next();
+});
+
+// In routes
+routerAdd("POST", "/api/process", (c) => {
+    try {
+        const data = $apis.requestInfo(c).data;
+        
+        // Validate input
+        if (!data.required_field) {
+            return c.json(400, {
+                error: "required_field is missing",
+                code: "MISSING_FIELD"
+            });
+        }
+        
+        // Process data
+        const result = processData(data);
+        
+        return c.json(200, { success: true, result: result });
+        
+    } catch (error) {
+        console.log(`API error: ${error.message}`);
+        
+        return c.json(500, {
+            error: "Internal server error",
+            code: "INTERNAL_ERROR"
+        });
+    }
+});
+```
+
+---
+
+## Best Practices
+
+### Hook Development Guidelines
+
+1. **Always call `e.next()`**
+```javascript
+// ✅ Correct
+onRecordCreate((e) => {
+    console.log("Creating record");
+    e.next(); // Required!
+});
+
+// ❌ Incorrect - will block execution
+onRecordCreate((e) => {
+    console.log("Creating record");
+    // Missing e.next()
+});
+```
+
+2. **Use collection scoping when appropriate**
+```javascript
+// ✅ Good - scoped to specific collection
+onRecordCreate((e) => {
+    // Only runs for user records
+    initializeUserProfile(e.record);
+    e.next();
+}, "users");
+
+// ⚠️ Less efficient - runs for all collections
+onRecordCreate((e) => {
+    if (e.collection.name === "users") {
+        initializeUserProfile(e.record);
+    }
+    e.next();
+});
+```
+
+3. **Handle errors gracefully**
+```javascript
+onRecordCreate((e) => {
+    try {
+        // Risky operation
+        performComplexOperation(e.record);
+    } catch (error) {
+        console.log(`Error: ${error.message}`);
+        // Don't prevent record creation due to non-critical error
+    }
+    
+    e.next();
+});
+```
+
+4. **Log important events**
+```javascript
+onRecordAuthWithPasswordRequest((e) => {
+    const email = e.record?.get("email") || "unknown";
+    const ip = e.request?.remoteAddr || "unknown";
+    
+    console.log(`[AUTH] Login attempt: ${email} from ${ip}`);
+    
+    // Log to database for auditing
+    $app.db()
+        .insert("auth_logs", {
+            "email": email,
+            "ip_address": ip,
+            "action": "login_attempt",
+            "created": new Date().toISOString()
+        })
+        .execute();
+    
+    e.next();
+});
+```
+
+### Performance Considerations
+
+1. **Use database queries efficiently**
+```javascript
+// ✅ Good - single query with joins
+const ordersWithUsers = $app.db()
+    .select("orders.*, users.name")
+    .from("orders")
+    .leftJoin("users", $dbx.exp("users.id = orders.user_id"))
+    .limit(100)
+    .all();
+
+// ❌ Bad - N+1 query problem
+const orders = $app.db().select("*").from("orders").limit(100).all();
+orders.forEach(order => {
+    const user = $app.db()
+        .select("name")
+        .from("users")
+        .where($dbx.exp("id = {:id}", { id: order.user_id }))
+        .one();
+    // Process order with user data
+});
+```
+
+2. **Cache expensive operations**
+```javascript
+// Simple in-memory cache
+const cache = new Map();
+
+function getExpensiveData(key) {
+    if (cache.has(key)) {
+        return cache.get(key);
+    }
+    
+    const data = performExpensiveOperation(key);
+    cache.set(key, data);
+    
+    // Clear cache after 5 minutes
+    setTimeout(() => cache.delete(key), 5 * 60 * 1000);
+    
+    return data;
+}
+```
+
+3. **Use transactions for related operations**
+```javascript
+onRecordCreate((e) => {
+    if (e.collection.name === "orders") {
+        $app.runInTransaction((db) => {
+            // All operations succeed or fail together
+            updateInventory(db, e.record);
+            createInvoice(db, e.record);
+            sendNotification(db, e.record);
+        });
+    }
+    
+    e.next();
+});
+```
+
+### Security Best Practices
+
+1. **Validate all inputs**
+```javascript
+routerAdd("POST", "/api/user/update", (c) => {
+    const data = $apis.requestInfo(c).data;
+    
+    // Validate required fields
+    if (!data.name || typeof data.name !== "string") {
+        return c.json(400, { error: "Invalid name" });
+    }
+    
+    // Sanitize inputs
+    const sanitizedName = data.name.trim().substring(0, 100);
+    
+    // Process with sanitized data
+    return processUserUpdate(sanitizedName);
+});
+```
+
+2. **Use parameterized queries**
+```javascript
+// ✅ Safe - parameterized query
+const user = $app.db()
+    .select("*")
+    .from("users")
+    .where($dbx.exp("email = {:email}", { email: userEmail }))
+    .one();
+
+// ❌ Dangerous - SQL injection risk
+const user = $app.db()
+    .select("*")
+    .from("users")
+    .where($dbx.exp(`email = '${userEmail}'`)) // Don't do this!
+    .one();
+```
+
+3. **Implement rate limiting**
+```javascript
+const rateLimits = new Map();
+
+function checkRateLimit(key, limit, window) {
+    const now = Date.now();
+    const requests = rateLimits.get(key) || [];
+    const validRequests = requests.filter(time => now - time < window);
+    
+    if (validRequests.length >= limit) {
+        throw new BadRequestError("Rate limit exceeded");
+    }
+    
+    validRequests.push(now);
+    rateLimits.set(key, validRequests);
+}
+
+onRecordAuthWithPasswordRequest((e) => {
+    const email = e.record?.get("email");
+    const ip = e.request?.remoteAddr;
+    
+    // Rate limit by email and IP
+    checkRateLimit(`auth_${email}`, 5, 15 * 60 * 1000); // 5 attempts per 15 min
+    checkRateLimit(`auth_ip_${ip}`, 20, 15 * 60 * 1000); // 20 attempts per IP per 15 min
+    
+    e.next();
+});
+```
+
+### Testing and Debugging
+
+1. **Add comprehensive logging**
+```javascript
+function debugLog(context, data) {
+    console.log(`[${new Date().toISOString()}] [${context}]`, JSON.stringify(data, null, 2));
+}
+
+onRecordCreate((e) => {
+    debugLog("RECORD_CREATE", {
+        collection: e.collection.name,
+        recordId: e.record.id,
+        data: e.record.publicExport()
+    });
+    
+    e.next();
+});
+```
+
+2. **Test hook availability**
+```javascript
+// Test at startup
+onBootstrap((e) => {
+    console.log("🧪 Testing hook availability...");
+    
+    const hooks = [
+        "onRecordCreate",
+        "onRecordAuthWithPasswordRequest",
+        "onMailerSend"
+    ];
+    
+    hooks.forEach(hookName => {
+        try {
+            // Test if hook function exists
+            if (typeof eval(hookName) === "function") {
+                console.log(`✅ ${hookName} - Available`);
+            } else {
+                console.log(`❌ ${hookName} - Not a function`);
+            }
+        } catch (error) {
+            console.log(`❌ ${hookName} - Error: ${error.message}`);
+        }
+    });
+    
+    e.next();
+});
+```
+
+---
+
+## Version Compatibility Notes
+
+**Important**: PocketBase is under active development. Hook availability may vary between versions.
+
+- Some hooks may not be available in older versions (e.g., v0.29.0)
+- Always verify hook functionality in your specific PocketBase version
+- Refer to official documentation for the most current information
+- Test thoroughly before deploying to production
+
+### Checking Version Compatibility
+```javascript
+// Log PocketBase version information
+onBootstrap((e) => {
+    console.log("🚀 PocketBase JSVM Environment");
+    console.log("📋 Available APIs:", Object.keys(globalThis).filter(key => key.startsWith('$')));
+    
+    // Test core functionality
+    try {
+        const testResult = $app.dao().totalRecords("users");
+        console.log("✅ Database access working");
+    } catch (error) {
+        console.log("❌ Database access failed:", error.message);
+    }
+    
+    e.next();
+});
+```
+
+---
+
+This comprehensive reference covers all documented PocketBase JSVM features. Always refer to the official documentation at https://pocketbase.io/docs/ for the most up-to-date information and verify hook availability with your specific PocketBase version.

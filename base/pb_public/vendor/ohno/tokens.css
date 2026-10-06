@@ -1,0 +1,815 @@
+/* ==========================================================================
+   ohno · tokens.css  (v4)
+   Design tokens — vivid accents/status on muted neutral surfaces.
+
+   RULES
+   1. Light theme: nothing brighter than #b3b3bd (the lightest surface).
+      No eye-burning whites. Dark text on muted surfaces, value contrast.
+   2. Dark theme: text capped at #dedede, never pure white.
+   3. Special themes (glass / neu / term / oled) may relax rule 2 with intent:
+      term intentionally glows, oled intentionally maxes contrast.
+
+   CASCADE  →  @layer tokens, base, components;  (app code always wins)
+   THEMES   →  [data-theme="neutral" | "glass" | "neu" | "term" | "oled"]
+   FACES    →  [data-look="light" | "dark"] (light is not a theme)
+   PALETTES →  [data-palette="indigo" | "ember" | "forest" | "mono"] (accent)
+   CONTRAST →  [data-contrast="low" | "med" | "high"] (text/border punch)
+   DENSITY  →  [data-density="dense" | "regular" | "large"] (control scale)
+   Defaults: neutral + dark face + indigo + med + regular. Set on <html>.
+
+   Accent hover/active/soft are DERIVED with color-mix() — a palette only
+   declares --o-accent + --o-on-accent. Add one, get everything.
+   Themes are full structural token sets — copy a block and tweak values.
+   --o-bw is the global border width (1px default; 2–3px = chunky look).
+   ========================================================================== */
+
+@layer tokens, base, components;
+
+@layer tokens {
+
+/* --------------------------------------------------------------------------
+   DARK structure (+ default indigo accent)
+   -------------------------------------------------------------------------- */
+:root {
+  color-scheme: dark;
+
+  /* Surfaces (neutral, slightly warm) */
+  --o-bg:        #131316;
+  --o-surface:   #1a1a1e;
+  --o-surface-2: #212126;
+  --o-surface-3: #2a2a31;
+  --o-backdrop:  rgba(8, 8, 10, 0.62);
+
+  /* Text — med baseline: capped at #dedede, never pure white */
+  --o-text:   #dedede;
+  --o-text-2: #98989f;
+  --o-text-3: #82828d;  /* ≥4.5:1 on surface (AA) — was #65656d (2.97:1, flagged cycle-1 QA) */
+
+  /* Borders */
+  --o-border:   rgba(255, 255, 255, 0.09);
+  --o-border-2: rgba(255, 255, 255, 0.16);
+
+  /* Accent — palette: indigo (default). Hover/active/soft derived below. */
+  --o-accent:    #696fde;   /* OKLCH C 0.166 — vivid, CR 4.07 on surface */
+  --o-on-accent: #e4e4e8;
+
+  /* Status — vivid, CR ≥ 4.5 as text on surface (no softs for status) */
+  --o-green:       #4ba97a;  --o-green-soft:  rgba(75, 169, 122, 0.15);
+  --o-yellow:      #cea839;  --o-yellow-soft: rgba(206, 168, 57, 0.15);
+  --o-red:         #dd696d;  --o-red-soft:    rgba(221, 105, 109, 0.14);
+  --o-blue:        #5694de;  --o-blue-soft:   rgba(85, 148, 222, 0.15);
+  --o-orange:      #d4863c;  --o-orange-soft: rgba(212, 134, 60, 0.15);
+
+  /* Status/accent foreground (public contract): TEXT always uses the -text
+     token, fills/dots/borders/softs use the raw token. Dark faces alias -text
+     to the raw status value (vivid-on-dark already passes AA); light faces
+     re-derive it below toward --o-text (status text on mid-gray light surfaces
+     measured 1.0-1.6:1 with the raw values — GOAL.md item 4). */
+  --o-green-text:  var(--o-green);
+  --o-yellow-text: var(--o-yellow);
+  --o-red-text:    var(--o-red);
+  --o-blue-text:   var(--o-blue);
+  --o-orange-text: var(--o-orange);
+  --o-accent-text: color-mix(in oklab, var(--o-accent) 55%, var(--o-text));
+
+  /* Softs derive from the status tokens, same pattern as accent-soft and
+     the light face. Plain rgba fallbacks first for engines without color-mix(). */
+  --o-green-soft:  color-mix(in srgb, var(--o-green) 15%, transparent);
+  --o-yellow-soft: color-mix(in srgb, var(--o-yellow) 15%, transparent);
+  --o-red-soft:    color-mix(in srgb, var(--o-red) 14%, transparent);
+  --o-blue-soft:   color-mix(in srgb, var(--o-blue) 15%, transparent);
+  --o-orange-soft: color-mix(in srgb, var(--o-orange) 15%, transparent);
+
+  /* Small details */
+  --o-knob: #e4e4e8;  /* switch / checkbox check surfaces */
+  --o-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%2398989f' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+
+  /* Radii */
+  --o-r-sm: 6px;
+  --o-r-md: 10px;
+  --o-r-lg: 14px;
+  --o-r-full: 999px;
+
+  /* Spacing scale */
+  --o-s1: 4px;
+  --o-s2: 8px;
+  --o-s3: 12px;
+  --o-s4: 16px;
+  --o-s5: 20px;
+  --o-s6: 24px;
+  --o-s8: 32px;
+
+  /* Control heights */
+  --o-h-sm: 26px;
+  --o-h-md: 32px;
+  --o-h-lg: 38px;
+
+  /* Type — system stack first, crisp and native-feeling */
+  --o-font: system-ui, -apple-system, "SF Pro Text", "Segoe UI", Inter,
+              Roboto, "Helvetica Neue", sans-serif;
+  --o-mono: "SF Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --o-fs-xs: 11px;
+  --o-fs-sm: 12px;
+  --o-fs-md: 13px;
+  --o-fs-lg: 15px;
+  --o-fs-xl: 20px;
+
+  /* Elevation */
+  --o-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.40);
+  --o-shadow-md: 0 4px 14px rgba(0, 0, 0, 0.45), 0 1px 3px rgba(0, 0, 0, 0.35);
+  --o-shadow-lg: 0 20px 48px rgba(0, 0, 0, 0.55), 0 6px 16px rgba(0, 0, 0, 0.40);
+
+  /* Border width — one knob for the whole kit's line weight */
+  --o-bw: 1px;
+
+  /* Focus ring */
+  --o-ring: 0 0 0 2px var(--o-bg), 0 0 0 4px var(--o-accent);
+
+  /* Motion */
+  --o-ease: cubic-bezier(0.2, 0.8, 0.3, 1);
+  --o-speed: 140ms;
+
+  /* Motion durations — Open Props-style (override once to retime everything) */
+  --o-dur-quick-1:    80ms;
+  --o-dur-quick-2:    130ms;
+  --o-dur-moderate-1: 180ms;
+  --o-dur-moderate-2: 260ms;
+  --o-dur-gentle-1:   320ms;
+}
+
+/* --------------------------------------------------------------------------
+   Accent derivations — color-mix() does the work for every palette/theme.
+   Resolved against the winning --o-accent on the same element, so any
+   palette override automatically gets matching hover/active/soft.
+   -------------------------------------------------------------------------- */
+:root {
+  /* Plain fallbacks first — engines without color-mix() (Safari 16.0/16.1,
+     FF < 113) get usable solid accents instead of invalid → transparent. */
+  --o-accent-hover:  var(--o-accent);
+  --o-accent-active: var(--o-accent);
+  --o-accent-soft:   var(--o-accent);
+  --o-accent-hover:  color-mix(in oklab, var(--o-accent), white 8%);
+  --o-accent-active: color-mix(in oklab, var(--o-accent), black 10%);
+  --o-accent-soft:   color-mix(in srgb, var(--o-accent) 16%, transparent);
+}
+
+/* --------------------------------------------------------------------------
+   Light theme — readable graphite with a tinted neutral ramp. Redesigned:
+   · near-black text (#16161c) on #b3b3bd → ~8.7:1 contrast
+   · wide surface separation so layers actually read as layers
+   · crisp dark borders + tight layered shadows (no "low-res mush")
+   The LIGHTEST color is still #b3b3bd — the rule stands.
+
+   Light is a FACE (data-look="light"), not a theme. It ships on the neutral
+   dark base (dark = default), so `light` is no longer duplicated as a theme.
+   -------------------------------------------------------------------------- */
+[data-look="light"] {
+  color-scheme: light;
+
+  /* Neutral ramp tinted toward the accent hue — chroma comes from hue,
+     not brightness (surface stays the lightest color in the kit). */
+  --o-bg:        #9294a4;
+  --o-surface:   #b3b3bd;   /* ← lightest color in the kit */
+  --o-surface-2: #a5a6b2;
+  --o-surface-3: #9a9baa;
+  --o-backdrop:  rgba(18, 18, 24, 0.50);
+
+  --o-text:   #16161c;
+  --o-text-2: #2b2b33;   /* ≥4.5:1 on bg AND surfaces (AA) — was #3b3b44 (3.69:1 on bg, flagged QA) */
+  --o-text-3: #42424a;   /* ≥4.5:1 on surface (AA), ~3.3:1 on bg — was #67676f (2.7:1), then #484850 (4.36:1) */
+
+  --o-border:   rgba(22, 22, 28, 0.22);
+  --o-border-2: rgba(22, 22, 28, 0.40);
+
+  --o-accent:    #474bbc;   /* OKLCH C 0.174 — vivid, CR 3.37 on surface */
+  --o-on-accent: #dcdce6;
+
+  /* Accent soft gets a stronger wash on light bg (dark keeps the 16% :root default). */
+  --o-accent-soft: rgba(71, 75, 188, 0.20);
+  --o-accent-soft: color-mix(in srgb, var(--o-accent) 20%, transparent);
+
+  /* Status — vivid, same ~3:1 legibility floor. */
+  --o-green:       #006f3b;  --o-green-soft:  rgba(0, 111, 59, 0.18);
+  --o-yellow:      #705d00;  --o-yellow-soft: rgba(112, 93, 0, 0.18);
+  --o-red:         #ab1e27;  --o-red-soft:    rgba(171, 30, 39, 0.18);
+  --o-blue:        #005cb5;  --o-blue-soft:   rgba(0, 92, 181, 0.18);
+  --o-orange:      #954d00;  --o-orange-soft: rgba(149, 77, 0, 0.18);
+
+  /* Softs derive from the status tokens, same pattern as accent-soft.
+     Plain rgba fallbacks first for engines without color-mix(). */
+  --o-green-soft:  color-mix(in srgb, var(--o-green) 18%, transparent);
+  --o-yellow-soft: color-mix(in srgb, var(--o-yellow) 18%, transparent);
+  --o-red-soft:    color-mix(in srgb, var(--o-red) 18%, transparent);
+  --o-blue-soft:   color-mix(in srgb, var(--o-blue) 18%, transparent);
+  --o-orange-soft: color-mix(in srgb, var(--o-orange) 18%, transparent);
+
+  /* Status TEXT — derived dark inks (debate cycle-118, Option B): the raw
+     status values above are for fills/borders/dots; as 11px badge text they
+     measured 1.0-1.6:1 on --o-bg/#9294a4 and surface/#b3b3bd. 12% mix into
+     --o-text keeps a visible hue tint and passes ≥4.5:1 (≥4.8 engineered
+     margin) on every light-theme surface incl. each token's own soft pill. */
+  --o-green-text:  color-mix(in oklab, var(--o-green) 12%, var(--o-text));
+  --o-yellow-text: color-mix(in oklab, var(--o-yellow) 12%, var(--o-text));
+  --o-red-text:    color-mix(in oklab, var(--o-red) 12%, var(--o-text));
+  --o-blue-text:   color-mix(in oklab, var(--o-blue) 12%, var(--o-text));
+  --o-orange-text: color-mix(in oklab, var(--o-orange) 12%, var(--o-text));
+  --o-accent-text: color-mix(in oklab, var(--o-accent) 14%, var(--o-text));
+
+  --o-knob: #c9cad6;
+  --o-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%233b3b44' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+
+  --o-shadow-sm: 0 1px 2px rgba(16, 16, 22, 0.30);
+  --o-shadow-md: 0 2px 6px rgba(16, 16, 22, 0.28), 0 8px 24px rgba(16, 16, 22, 0.22);
+  --o-shadow-lg: 0 4px 10px rgba(16, 16, 22, 0.28), 0 24px 56px rgba(16, 16, 22, 0.30);
+
+  --o-ring: 0 0 0 2px var(--o-surface), 0 0 0 4px var(--o-accent);
+}
+
+/* --------------------------------------------------------------------------
+   CONTRAST — see the PALETTES/CONTRAST section at the bottom of this file
+   (after THEMES). Kept near the themes for cascade clarity.
+   -------------------------------------------------------------------------- */
+
+/* --------------------------------------------------------------------------
+   DENSITY — one attribute, zero JS. Set [data-density="dense|regular|large"]
+   on <html>. Scales every control that uses --o-h-* / --o-fs-* /
+   --o-s* tokens (buttons, inputs, selects, menus, rows, tables…).
+   Components that hardcode paddings read these same tokens, so everything
+   resizes together. Default: regular.
+   -------------------------------------------------------------------------- */
+[data-density="dense"] {
+  --o-h-sm: 22px;
+  --o-h-md: 26px;
+  --o-h-lg: 30px;
+  --o-fs-xs: 10px;
+  --o-fs-sm: 11px;
+  --o-fs-md: 12px;
+  --o-fs-lg: 13px;
+  --o-fs-xl: 17px;
+  --o-s1: 3px;
+  --o-s2: 6px;
+  --o-s3: 9px;
+  --o-s4: 12px;
+  --o-s5: 15px;
+  --o-s6: 18px;
+  --o-s8: 24px;
+}
+[data-density="large"] {
+  --o-h-sm: 30px;
+  --o-h-md: 38px;
+  --o-h-lg: 46px;
+  --o-fs-xs: 12px;
+  --o-fs-sm: 13px;
+  --o-fs-md: 15px;
+  --o-fs-lg: 17px;
+  --o-fs-xl: 23px;
+  --o-s1: 5px;
+  --o-s2: 10px;
+  --o-s3: 15px;
+  --o-s4: 20px;
+  --o-s5: 25px;
+  --o-s6: 30px;
+  --o-s8: 40px;
+}
+
+/* ==========================================================================
+   THEMES (structural, beyond dark/light)
+   Full token sets for surfaces/text/structure. glass / neu / term / oled
+   own their look; PALETTES still apply on top of every theme (declared
+   after them in the cascade). CONTRAST is tuned for dark/light faces + glass.
+   EVERY theme ships a light and a dark face — [data-look="light|dark"]
+   flips it (the opposite of each theme's built-in identity).
+   ========================================================================== */
+
+/* glass — frosted dark: translucent layers, gradient ambience, blur-friendly.
+   Surfaces are rgba whites — put content on them and the gradient bg shows
+   through. --o-bg is a gradient (body paints it directly). */
+[data-theme="glass"] {
+  color-scheme: dark;
+
+  --o-bg:        linear-gradient(160deg, #16161e 0%, #101017 45%, #0c0c12 100%);
+  --o-surface:   rgba(255, 255, 255, 0.06);
+  --o-surface-2: rgba(255, 255, 255, 0.09);
+  --o-surface-3: rgba(255, 255, 255, 0.13);
+  --o-backdrop:  rgba(5, 5, 8, 0.55);
+
+  --o-text:   #e3e3e9;
+  --o-text-2: #9d9da8;
+  --o-text-3: #888893;   /* ≥4.5:1 on the translucent surface over the dark gradient (AA) — was #767684 (3.70:1) */
+
+  --o-border:   rgba(255, 255, 255, 0.10);
+  --o-border-2: rgba(255, 255, 255, 0.20);
+
+  --o-accent:    #7f86e8;
+  --o-on-accent: #101018;
+
+  --o-green:       #57c08a;  --o-green-soft:  rgba(87, 192, 138, 0.14);
+  --o-yellow:      #d9b34a;  --o-yellow-soft: rgba(217, 179, 74, 0.14);
+  --o-red:         #e97a7e;  --o-red-soft:    rgba(233, 122, 126, 0.13);
+  --o-blue:        #6aa8e8;  --o-blue-soft:   rgba(106, 168, 232, 0.14);
+  --o-orange:      #e0964f;  --o-orange-soft: rgba(224, 150, 79, 0.14);
+
+  /* Dark face: -text aliases raw status (vivid-on-dark already passes AA). */
+  --o-green-text:  var(--o-green);
+  --o-yellow-text: var(--o-yellow);
+  --o-red-text:    var(--o-red);
+  --o-blue-text:   var(--o-blue);
+  --o-orange-text: var(--o-orange);
+  --o-accent-text: color-mix(in oklab, var(--o-accent) 55%, var(--o-text));
+
+  --o-knob: #e3e3e9;
+  --o-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%239d9da8' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+
+  --o-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.30);
+  --o-shadow-md: 0 4px 18px rgba(0, 0, 0, 0.35);
+  --o-shadow-lg: 0 20px 60px rgba(0, 0, 0, 0.45);
+  --o-ring: 0 0 0 2px rgba(10, 10, 14, 0.85), 0 0 0 4px var(--o-accent);
+}
+
+/* glass light-look — frosted daylight haze for bright rooms */
+[data-theme="glass"][data-look="light"] {
+  color-scheme: light;
+
+  --o-bg:        linear-gradient(160deg, #b6b7c6 0%, #a4a5b6 55%, #989aae 100%);
+  --o-surface:   rgba(255, 255, 255, 0.38);
+  --o-surface-2: rgba(255, 255, 255, 0.52);
+  --o-surface-3: rgba(255, 255, 255, 0.66);
+  --o-backdrop:  rgba(20, 20, 28, 0.35);
+
+  --o-text:   #16161c;
+  --o-text-2: #3c3c46;
+  --o-text-3: #53535c;   /* ≥4.5:1 on the translucent surface over the light gradient (AA) — was #62626a (4.03:1) */
+
+  --o-border:   rgba(22, 22, 28, 0.16);
+  --o-border-2: rgba(22, 22, 28, 0.30);
+
+  --o-accent:    #474bbc;
+  --o-on-accent: #f2f2f8;
+
+  --o-green:       #0a6b3e;  --o-green-soft:  rgba(10, 107, 62, 0.16);
+  --o-yellow:      #6f5c04;  --o-yellow-soft: rgba(111, 92, 4, 0.16);
+  --o-red:         #ab1e27;  --o-red-soft:    rgba(171, 30, 39, 0.16);
+  --o-blue:        #005cb5;  --o-blue-soft:   rgba(0, 92, 181, 0.16);
+  --o-orange:      #954d00;  --o-orange-soft: rgba(149, 77, 0, 0.16);
+
+  /* Status TEXT — derived inks (debate cycle-118, Option B): raw values above
+     only reach 3.1-4.3:1 across the gradient faces; 12% into --o-text passes
+     ≥4.5:1 on every surface the gradient can paint. */
+  --o-green-text:  color-mix(in oklab, var(--o-green) 12%, var(--o-text));
+  --o-yellow-text: color-mix(in oklab, var(--o-yellow) 12%, var(--o-text));
+  --o-red-text:    color-mix(in oklab, var(--o-red) 12%, var(--o-text));
+  --o-blue-text:   color-mix(in oklab, var(--o-blue) 12%, var(--o-text));
+  --o-orange-text: color-mix(in oklab, var(--o-orange) 12%, var(--o-text));
+  --o-accent-text: color-mix(in oklab, var(--o-accent) 14%, var(--o-text));
+
+  --o-knob: #f2f2f8;
+  --o-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%233c3c46' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+
+  --o-shadow-sm: 0 1px 2px rgba(16, 16, 22, 0.18);
+  --o-shadow-md: 0 4px 16px rgba(16, 16, 22, 0.22);
+  --o-shadow-lg: 0 20px 56px rgba(16, 16, 22, 0.28);
+  --o-ring: 0 0 0 2px rgba(240, 240, 248, 0.9), 0 0 0 4px var(--o-accent);
+}
+
+/* neu — neumorphic: soft-extruded light clay, dual shadows do all the work.
+   Rule 1 relaxed by intent: the lightest surface here is #e8e9f0. */
+[data-theme="neu"] {
+  color-scheme: light;
+
+  --o-bg:        #e8e9f0;
+  --o-surface:   #e8e9f0;
+  --o-surface-2: #e2e3ec;
+  --o-surface-3: #d6d8e3;
+  --o-backdrop:  rgba(40, 42, 55, 0.42);
+
+  --o-text:   #2f3140;
+  --o-text-2: #5b5d70;
+  --o-text-3: #6d7087;
+
+  --o-border:   rgba(47, 49, 64, 0.14);
+  --o-border-2: rgba(47, 49, 64, 0.30);
+
+  --o-accent:    #5b62d6;
+  --o-on-accent: #f0f1f8;
+
+  --o-green:       #2d8f5e;  --o-green-soft:  rgba(45, 143, 94, 0.14);
+  --o-yellow:      #a28718;  --o-yellow-soft: rgba(162, 135, 24, 0.14);
+  --o-red:         #c4444d;  --o-red-soft:    rgba(196, 68, 77, 0.13);
+  --o-blue:        #3f7fc2;  --o-blue-soft:   rgba(63, 127, 194, 0.14);
+  --o-orange:      #c06a2a;  --o-orange-soft: rgba(192, 106, 42, 0.14);
+
+  /* Status TEXT — derived inks (debate cycle-118, Option B): raw values as
+     badge text peak at 2.9:1 on the clay; 12% into --o-text passes ≥4.5:1. */
+  --o-green-text:  color-mix(in oklab, var(--o-green) 12%, var(--o-text));
+  --o-yellow-text: color-mix(in oklab, var(--o-yellow) 12%, var(--o-text));
+  --o-red-text:    color-mix(in oklab, var(--o-red) 12%, var(--o-text));
+  --o-blue-text:   color-mix(in oklab, var(--o-blue) 12%, var(--o-text));
+  --o-orange-text: color-mix(in oklab, var(--o-orange) 12%, var(--o-text));
+  --o-accent-text: color-mix(in oklab, var(--o-accent) 14%, var(--o-text));
+
+  --o-knob: #f2f3f9;
+  --o-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%235b5d70' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+
+  --o-shadow-sm: 3px 3px 7px rgba(163, 166, 190, 0.60),
+                 -3px -3px 7px rgba(255, 255, 255, 0.95);
+  --o-shadow-md: 5px 5px 12px rgba(163, 166, 190, 0.55),
+                 -5px -5px 12px rgba(255, 255, 255, 0.90);
+  --o-shadow-lg: 10px 10px 26px rgba(163, 166, 190, 0.50),
+                 -10px -10px 26px rgba(255, 255, 255, 0.85);
+  --o-ring: 0 0 0 2px var(--o-bg), 0 0 0 4px var(--o-accent);
+}
+
+/* term — CRT phosphor terminal: glowing phosphor-on-black, mono UI font,
+   chunky glow. Glows past #dedede on purpose (rule 3).
+   IDENTITY: the phosphor color IS the accent — text ramp, borders and knob
+   all derive from --o-accent, so palettes retheme the whole terminal, not
+   just one button. Ember ≈ the classic amber CRT. */
+[data-theme="term"] {
+  color-scheme: dark;
+
+  --o-bg:        #0a0806;
+  --o-surface:   #16110b;
+  --o-surface-2: #211a10;
+  --o-surface-3: #2d2314;
+  --o-backdrop:  rgba(2, 2, 2, 0.70);
+
+  --o-text:   var(--o-accent);
+  --o-text-2: color-mix(in oklab, var(--o-accent) 72%, var(--o-bg));
+  --o-text-3: color-mix(in oklab, var(--o-accent) 52%, var(--o-bg));
+
+  --o-border:   color-mix(in srgb, var(--o-accent) 18%, transparent);
+  --o-border-2: color-mix(in srgb, var(--o-accent) 34%, transparent);
+
+  --o-accent:    #ffb454;
+  --o-on-accent: #1a1105;
+
+  --o-green:       #7ec46b;  --o-green-soft:  rgba(126, 196, 107, 0.14);
+  --o-yellow:      #ffcf6b;  --o-yellow-soft: rgba(255, 207, 107, 0.13);
+  --o-red:         #ff7b6b;  --o-red-soft:    rgba(255, 123, 107, 0.13);
+  --o-blue:        #6bb7d4;  --o-blue-soft:   rgba(107, 183, 212, 0.14);
+  --o-orange:      #ff913d;  --o-orange-soft: rgba(255, 145, 61, 0.14);
+
+  /* Dark face: -text aliases raw status (vivid-on-dark already passes AA). */
+  --o-green-text:  var(--o-green);
+  --o-yellow-text: var(--o-yellow);
+  --o-red-text:    var(--o-red);
+  --o-blue-text:   var(--o-blue);
+  --o-orange-text: var(--o-orange);
+  --o-accent-text: var(--o-accent);
+
+  --o-knob: var(--o-accent);
+  --o-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23d1913a' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+
+  --o-font: "SF Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --o-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.50);
+  --o-shadow-md: 0 4px 14px rgba(0, 0, 0, 0.50);
+  --o-shadow-lg: 0 20px 48px rgba(0, 0, 0, 0.60);
+  --o-ring: 0 0 0 2px #0a0806, 0 0 0 4px var(--o-accent);
+}
+
+/* oled — true black for OLED panels: surfaces float on pure black.
+   Intentionally past the #dedede cap (rule 3) — max contrast is the point. */
+[data-theme="oled"] {
+  color-scheme: dark;
+
+  --o-bg:        #000000;
+  --o-surface:   #0e0e11;
+  --o-surface-2: #17171b;
+  --o-surface-3: #222227;
+  --o-backdrop:  rgba(0, 0, 0, 0.75);
+
+  --o-text:   #e8e8ee;
+  --o-text-2: #93939c;
+  --o-text-3: #5d5d65;
+
+  --o-border:   rgba(255, 255, 255, 0.11);
+  --o-border-2: rgba(255, 255, 255, 0.20);
+
+  --o-accent:    #7d84e8;
+  --o-on-accent: #0c0c12;
+
+  --o-green:       #55c184;  --o-green-soft:  rgba(85, 193, 132, 0.14);
+  --o-yellow:      #d4ae4a;  --o-yellow-soft: rgba(212, 174, 74, 0.14);
+  --o-red:         #e57276;  --o-red-soft:    rgba(229, 114, 118, 0.14);
+  --o-blue:        #62a2e6;  --o-blue-soft:   rgba(98, 162, 230, 0.14);
+  --o-orange:      #dd8f46;  --o-orange-soft: rgba(221, 143, 70, 0.14);
+
+  /* Dark face: -text aliases raw status (vivid-on-dark already passes AA). */
+  --o-green-text:  var(--o-green);
+  --o-yellow-text: var(--o-yellow);
+  --o-red-text:    var(--o-red);
+  --o-blue-text:   var(--o-blue);
+  --o-orange-text: var(--o-orange);
+  --o-accent-text: color-mix(in oklab, var(--o-accent) 55%, var(--o-text));
+
+  --o-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.60);
+  --o-shadow-md: 0 4px 14px rgba(0, 0, 0, 0.65);
+  --o-shadow-lg: 0 20px 48px rgba(0, 0, 0, 0.75);
+  --o-ring: 0 0 0 2px #000, 0 0 0 4px var(--o-accent);
+}
+
+/* --------------------------------------------------------------------------
+   LOOK VARIANTS — every theme ships a light and a dark face.
+   Default look is the one above; the opposite is one attribute away:
+   [data-look="dark"] on light-identity themes, [data-look="light"] on dark
+   identities (including neutral). Same identity, flipped value scale.
+   -------------------------------------------------------------------------- */
+
+/* neu dark — soft-extruded charcoal clay: same dual-shadow trick, inverted */
+[data-theme="neu"][data-look="dark"] {
+  color-scheme: dark;
+
+  --o-bg:        #23242c;
+  --o-surface:   #23242c;
+  --o-surface-2: #262832;
+  --o-surface-3: #2b2d38;
+  --o-backdrop:  rgba(0, 0, 0, 0.60);
+
+  --o-text:   #d5d6e2;
+  --o-text-2: #979aae;
+  --o-text-3: #63667c;
+
+  --o-border:   rgba(0, 0, 0, 0.45);
+  --o-border-2: rgba(255, 255, 255, 0.10);
+
+  --o-accent:    #7b82e8;
+  --o-on-accent: #0e0e16;
+
+  --o-green:       #4cb383;  --o-green-soft:  rgba(76, 179, 131, 0.16);
+  --o-yellow:      #d4ae4a;  --o-yellow-soft: rgba(212, 174, 74, 0.16);
+  --o-red:         #e57276;  --o-red-soft:    rgba(229, 114, 118, 0.15);
+  --o-blue:        #62a2e6;  --o-blue-soft:   rgba(98, 162, 230, 0.16);
+  --o-orange:      #dd8f46;  --o-orange-soft: rgba(221, 143, 70, 0.16);
+
+  /* Dark face: -text aliases raw status EXCEPT red/blue — their soft pills on
+     the charcoal clay measured 4.14/4.4:1 (<4.5 AA); 12% derivation fixes. */
+  --o-green-text:  var(--o-green);
+  --o-yellow-text: var(--o-yellow);
+  --o-red-text:    color-mix(in oklab, var(--o-red) 12%, var(--o-text));
+  --o-blue-text:   color-mix(in oklab, var(--o-blue) 12%, var(--o-text));
+  --o-orange-text: var(--o-orange);
+  --o-accent-text: color-mix(in oklab, var(--o-accent) 55%, var(--o-text));
+
+  --o-knob: #33353f;
+  --o-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23979aae' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+
+  --o-shadow-sm: 3px 3px 7px rgba(0, 0, 0, 0.55),
+                 -3px -3px 7px rgba(255, 255, 255, 0.06);
+  --o-shadow-md: 5px 5px 12px rgba(0, 0, 0, 0.50),
+                 -5px -5px 12px rgba(255, 255, 255, 0.05);
+  --o-shadow-lg: 10px 10px 26px rgba(0, 0, 0, 0.45),
+                 -10px -10px 26px rgba(255, 255, 255, 0.04);
+  --o-ring: 0 0 0 2px var(--o-bg), 0 0 0 4px var(--o-accent);
+}
+
+/* term light — phosphor on warm paper for daylight terminals.
+   Same accent-derivation identity as term dark: palettes retheme the face. */
+[data-theme="term"][data-look="light"] {
+  color-scheme: light;
+
+  --o-bg:        #f5efe2;
+  --o-surface:   #f5efe6;
+  --o-surface-2: #efe8dc;
+  --o-surface-3: #e7dfcf;
+  --o-backdrop:  rgba(20, 12, 4, 0.45);
+
+  --o-text:   color-mix(in oklab, var(--o-accent) 46%, #1a1105);
+  --o-text-2: color-mix(in oklab, var(--o-accent) 62%, #1a1105);
+  --o-text-3: color-mix(in oklab, var(--o-accent) 75%, #1a1105);   /* toward INK — paper-mix dropped below 3:1 */
+
+  --o-border:   color-mix(in srgb, var(--o-accent) 22%, transparent);
+  --o-border-2: color-mix(in srgb, var(--o-accent) 40%, transparent);
+
+  --o-accent:    #a05a10;
+  --o-on-accent: #f7efe2;
+
+  --o-green:       #1e6e42;  --o-green-soft:  rgba(30, 110, 66, 0.15);
+  --o-yellow:      #7a5c00;  --o-yellow-soft: rgba(128, 100, 0, 0.15);
+  --o-red:         #a52a30;  --o-red-soft:    rgba(165, 42, 48, 0.14);
+  --o-blue:        #1d5f9e;  --o-blue-soft:   rgba(29, 95, 158, 0.15);
+  --o-orange:      #94500e;  --o-orange-soft: rgba(148, 80, 14, 0.15);
+
+  /* Status TEXT — derived inks (debate cycle-118, Option B): raw inks already
+     pass on paper (~5.4-6.2:1), but the -text contract is uniform across every
+     light face so consumer overrides can rely on it everywhere. */
+  --o-green-text:  color-mix(in oklab, var(--o-green) 12%, var(--o-text));
+  --o-yellow-text: color-mix(in oklab, var(--o-yellow) 12%, var(--o-text));
+  --o-red-text:    color-mix(in oklab, var(--o-red) 12%, var(--o-text));
+  --o-blue-text:   color-mix(in oklab, var(--o-blue) 12%, var(--o-text));
+  --o-orange-text: color-mix(in oklab, var(--o-orange) 12%, var(--o-text));
+  --o-accent-text: color-mix(in oklab, var(--o-accent) 14%, var(--o-text));
+
+  --o-knob: #f2ead9;
+  --o-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%236b532a' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+
+  --o-shadow-sm: 0 1px 2px rgba(64, 45, 16, 0.14);
+  --o-shadow-md: 0 4px 14px rgba(64, 45, 16, 0.18);
+  --o-shadow-lg: 0 20px 48px rgba(64, 45, 16, 0.20);
+  --o-ring: 0 0 0 2px var(--o-bg), 0 0 0 4px var(--o-accent);
+}
+
+/* oled light — true black identity flipped to paper white */
+[data-theme="oled"][data-look="light"] {
+  color-scheme: light;
+
+  --o-bg:        #ffffff;
+  --o-surface:   #ffffff;
+  --o-surface-2: #f2f2f6;
+  --o-surface-3: #e8e8ee;
+  --o-backdrop:  rgba(18, 18, 24, 0.50);
+
+  --o-text:   #16161c;
+  --o-text-2: #3c3c46;
+  --o-text-3: #565660;   /* ≥4:1 on #f2f2f6 — was #62626a, too faint */
+
+  --o-border:   rgba(22, 22, 28, 0.14);
+  --o-border-2: rgba(22, 22, 28, 0.28);
+
+  --o-accent:    #474bbc;
+  --o-on-accent: #f2f2f8;
+
+  --o-green:       #0a6b3e;  --o-green-soft:  rgba(10, 107, 62, 0.15);
+  --o-yellow:      #6f5c04;  --o-yellow-soft: rgba(111, 92, 4, 0.15);
+  --o-red:         #ab1e27;  --o-red-soft:    rgba(171, 30, 39, 0.14);
+  --o-blue:        #005cb5;  --o-blue-soft:   rgba(0, 92, 181, 0.15);
+  --o-orange:      #954d00;  --o-orange-soft: rgba(149, 77, 0, 0.15);
+
+  /* Status TEXT — derived inks (debate cycle-118, Option B): raw inks already
+     pass on white (~5.6-6.3:1); the -text contract stays uniform on all light
+     faces, so consumer overrides can rely on it everywhere. */
+  --o-green-text:  color-mix(in oklab, var(--o-green) 12%, var(--o-text));
+  --o-yellow-text: color-mix(in oklab, var(--o-yellow) 12%, var(--o-text));
+  --o-red-text:    color-mix(in oklab, var(--o-red) 12%, var(--o-text));
+  --o-blue-text:   color-mix(in oklab, var(--o-blue) 12%, var(--o-text));
+  --o-orange-text: color-mix(in oklab, var(--o-orange) 12%, var(--o-text));
+  --o-accent-text: color-mix(in oklab, var(--o-accent) 14%, var(--o-text));
+
+  --o-knob: #f2f2f6;
+  --o-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%233c3c46' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+
+  --o-shadow-sm: 0 1px 2px rgba(16, 16, 22, 0.12);
+  --o-shadow-md: 0 4px 14px rgba(16, 16, 22, 0.16);
+  --o-shadow-lg: 0 20px 48px rgba(16, 16, 22, 0.22);
+  --o-ring: 0 0 0 2px #fff, 0 0 0 4px var(--o-accent);
+}
+
+/* --------------------------------------------------------------------------
+   PALETTES — accent swaps, applied AFTER themes so they win the cascade on
+   every theme (dark/light/glass/neu/term/oled). Two lines each: accent +
+   on-accent text. Hover/active/soft derive automatically via color-mix().
+   Status colors stay per-theme; palettes only change the accent family.
+   Add a new palette by copying one pair (+ the look pairs if your theme
+   ships a flipped data-look face — palette look pairs must match that
+   specificity, e.g. [data-theme="term"][data-look="light"]).
+   -------------------------------------------------------------------------- */
+
+/* indigo — the default family (also restores accent after another palette) */
+[data-palette="indigo"] {
+  --o-accent:    #7174d4;
+  --o-on-accent: #0e0e14;
+}
+[data-theme="neutral"][data-look="light"][data-palette="indigo"],
+[data-theme="neu"][data-palette="indigo"],
+[data-theme="glass"][data-look="light"][data-palette="indigo"],
+[data-theme="term"][data-look="light"][data-palette="indigo"],
+[data-theme="oled"][data-look="light"][data-palette="indigo"] {
+  --o-accent:    #474bbc;
+  --o-on-accent: #e8e8f0;
+}
+/* neu flipped to its dark clay face — dark accent values win the cascade */
+[data-theme="neu"][data-look="dark"][data-palette="indigo"] {
+  --o-accent:    #7174d4;
+  --o-on-accent: #0e0e14;
+}
+
+/* ember — burnt sienna / rust */
+[data-palette="ember"] {
+  --o-accent:    #da7f3b;
+  --o-on-accent: #241a12;
+}
+[data-theme="neutral"][data-look="light"][data-palette="ember"],
+[data-theme="neu"][data-palette="ember"],
+[data-theme="glass"][data-look="light"][data-palette="ember"],
+[data-theme="term"][data-look="light"][data-palette="ember"],
+[data-theme="oled"][data-look="light"][data-palette="ember"] {
+  --o-accent:    #9e3600;   /* CR 3.39 on #b3b3bd, OKLCH C 0.148 */
+  --o-on-accent: #e4d9ce;   /* CR 5.07 on accent */
+}
+[data-theme="neu"][data-look="dark"][data-palette="ember"] {
+  --o-accent:    #da7f3b;
+  --o-on-accent: #241a12;
+}
+
+/* forest — sage green */
+[data-palette="forest"] {
+  --o-accent:    #6bae83;
+  --o-on-accent: #16211a;
+}
+[data-theme="neutral"][data-look="light"][data-palette="forest"],
+[data-theme="neu"][data-palette="forest"],
+[data-theme="glass"][data-look="light"][data-palette="forest"],
+[data-theme="term"][data-look="light"][data-palette="forest"],
+[data-theme="oled"][data-look="light"][data-palette="forest"] {
+  --o-accent:    #216741;   /* CR 3.28 on #b3b3bd, OKLCH C 0.093 */
+  --o-on-accent: #d5dfd4;   /* CR 4.98 on accent */
+}
+[data-theme="neu"][data-look="dark"][data-palette="forest"] {
+  --o-accent:    #6bae83;
+  --o-on-accent: #16211a;
+}
+
+/* mono — pure graphite, no hue */
+[data-palette="mono"] {
+  --o-accent:    #8b8b93;
+  --o-on-accent: #1a1a1e;
+}
+[data-theme="neutral"][data-look="light"][data-palette="mono"],
+[data-theme="neu"][data-palette="mono"],
+[data-theme="glass"][data-look="light"][data-palette="mono"],
+[data-theme="term"][data-look="light"][data-palette="mono"],
+[data-theme="oled"][data-look="light"][data-palette="mono"] {
+  --o-accent:    #3f444d;
+  --o-on-accent: #c9cacd;
+}
+[data-theme="neu"][data-look="dark"][data-palette="mono"] {
+  --o-accent:    #8b8b93;
+  --o-on-accent: #1a1a1e;
+}
+
+/* --------------------------------------------------------------------------
+   CONTRAST — one attribute, zero JS. Set [data-contrast="low|med|high"]
+   on <html>. Scales text punch and border crispness across the whole kit.
+   med = the tuned default. high = near-max legibility (accessibility mode).
+   low = quieter, "further away" UI chrome. Only touches text/border/backdrop
+   tokens — surfaces, accents and status colors are untouched.
+   Officially tuned for dark and light (incl. the default dark, i.e. <html>
+   with no data-theme at all). The exotic themes keep their own structure.
+   -------------------------------------------------------------------------- */
+
+/* dark face high/low — default dark + explicit dark face (the base without
+   data-look, or data-look="dark"). Light face gets its own high/low below. */
+[data-contrast="high"]:not([data-look="light"]) {
+  --o-text:   #f4f4f6;
+  --o-text-2: #b9b9c1;
+  --o-text-3: #8b8b93;
+  --o-border:   rgba(255, 255, 255, 0.18);
+  --o-border-2: rgba(255, 255, 255, 0.30);
+  --o-backdrop: rgba(8, 8, 10, 0.78);
+  --o-accent-soft: color-mix(in srgb, var(--o-accent) 24%, transparent);
+}
+[data-contrast="low"]:not([data-look="light"]) {
+  --o-text:   #c6c6cc;
+  --o-text-2: #7f7f87;
+  --o-text-3: #53535a;
+  --o-border:   rgba(255, 255, 255, 0.055);
+  --o-border-2: rgba(255, 255, 255, 0.11);
+  --o-backdrop: rgba(8, 8, 10, 0.48);
+  --o-accent-soft: color-mix(in srgb, var(--o-accent) 11%, transparent);
+}
+
+/* LIGHT face contrast */
+[data-look="light"][data-contrast="high"] {
+  --o-text:   #0e0e12;
+  --o-text-2: #303038;
+  --o-text-3: #4e4e56;
+  --o-border:   rgba(22, 22, 28, 0.36);
+  --o-border-2: rgba(22, 22, 28, 0.58);
+  --o-backdrop: rgba(18, 18, 24, 0.62);
+  --o-accent-soft: color-mix(in srgb, var(--o-accent) 24%, transparent);
+}
+[data-look="light"][data-contrast="low"] {
+  --o-text:   #2e2e35;
+  --o-text-2: #5b5b63;
+  --o-text-3: #6b6b73;   /* was #7e7e86 — below the readable floor */
+  --o-border:   rgba(22, 22, 28, 0.13);
+  --o-border-2: rgba(22, 22, 28, 0.26);
+  --o-backdrop: rgba(18, 18, 24, 0.38);
+  --o-accent-soft: color-mix(in srgb, var(--o-accent) 11%, transparent);
+}
+
+/* glass gets a tuned high variant (its surfaces are translucent — the
+   dark-ish defaults read well, but text needs the extra punch) */
+[data-theme="glass"][data-contrast="high"] {
+  --o-text:   #f0f0f4;
+  --o-text-2: #b4b4be;
+  --o-text-3: #82828a;
+  --o-border:   rgba(255, 255, 255, 0.16);
+  --o-border-2: rgba(255, 255, 255, 0.28);
+}
+[data-theme="glass"][data-contrast="low"] {
+  --o-text:   #c9c9cf;
+  --o-text-2: #80808a;
+  --o-text-3: #565660;
+  --o-border:   rgba(255, 255, 255, 0.07);
+  --o-border-2: rgba(255, 255, 255, 0.14);
+}
+
+/* --------------------------------------------------------------------------
+   Reduced motion — every animation/transition collapses to near-zero.
+   -------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  :root { --o-speed: 0ms; }
+}
+
+} /* @layer tokens */

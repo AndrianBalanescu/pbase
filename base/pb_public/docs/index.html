@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en" data-notch data-notch-home="/">
+  <head>
+    <title>baseStarter · API Reference</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Interactive API reference, generated live from the running PocketBase app." />
+    <!--
+      Scalar renders GET /openapi.json — a document GENERATED at request time from
+      the running app (collections via $app.findAllCollections(), custom routes via
+      base/pb_hooks/lib/api.js). There is no static spec to edit or keep in sync; change a
+      collection or add a route and this page reflects it on reload.
+
+      The renderer is VENDORED at /vendor/scalar.standalone.js (pinned
+      @scalar/api-reference@1.73.0) so the docs work offline with no runtime CDN.
+      To upgrade, download
+        https://cdn.jsdelivr.net/npm/@scalar/api-reference@<version>/dist/browser/standalone.js
+      over that file and update the version here.
+    -->
+    <script
+      id="api-reference"
+      data-url="/openapi.json"
+      data-configuration='{
+        "theme": "purple",
+        "darkMode": true,
+        "layout": "modern",
+        "hideModels": false,
+        "defaultHttpClient": { "targetKey": "shell", "clientKey": "curl" }
+      }'
+    ></script>
+    <script src="/vendor/scalar.standalone.js"></script>
+  </head>
+  <body>
+    <noscript>
+      <p>This reference needs JavaScript. The raw document is at
+        <a href="/openapi.json">/openapi.json</a>; see <a href="/llms.txt">/llms.txt</a>.</p>
+    </noscript>
+  </body>
+</html>

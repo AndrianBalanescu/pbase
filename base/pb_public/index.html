@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="en" data-notch data-notch-home="/">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>baseStarter · PocketBase</title>
+  <meta name="description" content="PocketBase starter — ohno UI, live data, realtime, and API docs generated from the running app.">
+  <!-- Apply a saved theme/face before first paint (see ohno llm.txt §0.7). -->
+  <script>try{var t=localStorage["ohno-theme"];if(t)document.documentElement.dataset.theme=t;if(matchMedia("(prefers-color-scheme: light)").matches&&!t)document.documentElement.dataset.look="light"}catch(e){}</script>
+
+  <!-- ohno — vendored zero-build UI kit. Classless-first: no invented classes. -->
+  <link rel="stylesheet" href="/vendor/ohno/tokens.min.css">
+  <link rel="stylesheet" href="/vendor/ohno/base.min.css">
+  <link rel="stylesheet" href="/vendor/ohno/components.min.css">
+  <!-- App-specific tweaks only (ohno does the rest). -->
+  <link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+  <!-- Extra buttons inside ohno's top-center notch. Read before ohno.js runs. -->
+  <template data-notch-items>
+    <a class="notch-btn" href="/docs/" aria-label="API reference" data-tip="API docs">▤</a>
+    <button class="notch-btn" data-action="theme-toggle" aria-label="Toggle light / dark" data-tip="Theme">◐</button>
+  </template>
+
+  <div id="app">
+    <div class="shell">
+      <div class="mobile-backdrop" :class="{ 'is-open': drawerOpen }" @click="drawerOpen = false"></div>
+
+      <!-- ── Sidebar ─────────────────────────────────────────────────── -->
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+          <div class="sidebar-logo">b</div>
+          <div class="sidebar-label">baseStarter</div>
+        </div>
+
+        <nav class="sidebar-nav">
+          <div class="sidebar-section">App</div>
+          <button class="nav-item" :class="{ 'is-active': tab === 'overview' }" @click="go('overview')">
+            <span aria-hidden="true">◧</span><span class="sidebar-label">Overview</span>
+          </button>
+          <button class="nav-item" :class="{ 'is-active': tab === 'posts' }" @click="go('posts')">
+            <span aria-hidden="true">▤</span><span class="sidebar-label">Posts</span>
+            <span class="sidebar-label badge" v-if="posts.length">{{ posts.length }}</span>
+          </button>
+
+          <div class="sidebar-section">Developer</div>
+          <button class="nav-item" :class="{ 'is-active': tab === 'schema' }" @click="go('schema')">
+            <span aria-hidden="true">⌗</span><span class="sidebar-label">Schema</span>
+          </button>
+          <button class="nav-item" :class="{ 'is-active': tab === 'api' }" @click="go('api')">
+            <span aria-hidden="true">↗</span><span class="sidebar-label">API</span>
+          </button>
+          <a class="nav-item" href="/docs/"><span aria-hidden="true">▤</span><span class="sidebar-label">Reference</span></a>
+          <a class="nav-item" href="/_/" target="_blank" rel="noopener"><span aria-hidden="true">⌘</span><span class="sidebar-label">Admin</span></a>
+        </nav>
+
+        <div class="sidebar-footer">
+          <div class="sidebar-user-meta">
+            <template v-if="user">
+              <div class="truncate"><strong>{{ user.name || user.email }}</strong></div>
+              <div class="caption truncate">{{ user.role || 'user' }}</div>
+              <button class="btn btn-sm" @click="logout">Sign out</button>
+            </template>
+            <template v-else>
+              <div class="caption">Not signed in</div>
+              <button class="btn btn-sm btn-primary" data-modal-open="#auth">Sign in</button>
+            </template>
+          </div>
+          <button class="btn btn-sm btn-icon" data-sidebar-toggle="#sidebar" aria-label="Collapse sidebar" data-tip="Collapse">⟨</button>
+        </div>
+      </aside>
+
+      <!-- ── Content ─────────────────────────────────────────────────── -->
+      <main class="content">
+        <div class="row">
+          <button class="mobile-toggle btn btn-sm" @click="drawerOpen = true" aria-label="Open menu">☰ Menu</button>
+          <span class="grow"></span>
+          <span class="badge" :class="live ? 'badge-success' : 'badge-warning'">
+            <span class="badge-dot"></span>{{ live ? 'realtime' : 'offline' }}
+          </span>
+          <button class="btn btn-sm btn-ghost" data-modal-open="#cmd" aria-label="Search" data-tip="⌘K">⌕</button>
+        </div>
+
+        <header class="app-hero">
+          <h1>{{ appName }}</h1>
+          <p class="caption">
+            A single Go binary + SQLite. This page is static HTML/CSS/JS — no build step.
+            Data and docs come from the running app.
+          </p>
+        </header>
+
+        <p v-if="error" class="card error-banner">{{ error }}</p>
+
+        <!-- Tabs + panels share one parent (ohno toggles [data-panel] hidden). -->
+        <section class="stack">
+          <div class="tabs" data-tabs>
+            <button class="tab" :class="{ 'is-active': tab === 'overview' }" data-tab="overview" @click="tab = 'overview'">Overview</button>
+            <button class="tab" :class="{ 'is-active': tab === 'posts' }" data-tab="posts" @click="tab = 'posts'">Posts</button>
+            <button class="tab" :class="{ 'is-active': tab === 'schema' }" data-tab="schema" @click="tab = 'schema'">Schema</button>
+            <button class="tab" :class="{ 'is-active': tab === 'api' }" data-tab="api" @click="tab = 'api'">API</button>
+          </div>
+
+          <!-- Overview -->
+          <div data-panel="overview">
+            <div class="grid-3 stats">
+              <div class="card">
+                <div class="caption">Posts</div>
+                <div class="metric">{{ stats.posts.total }}</div>
+                <div class="caption">{{ stats.posts.published }} published</div>
+              </div>
+              <div class="card">
+                <div class="caption">Users</div>
+                <div class="metric">{{ stats.users }}</div>
+                <div class="caption">auth collection</div>
+              </div>
+              <div class="card">
+                <div class="caption">Comments</div>
+                <div class="metric">{{ stats.comments }}</div>
+                <div class="caption">cascade-deleted with posts</div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-header">
+                <div><strong>Activity</strong> <span class="caption">— live from the database</span></div>
+                <button class="btn btn-sm btn-ghost" @click="loadAll" :disabled="loading">{{ loading ? 'Refreshing…' : 'Refresh' }}</button>
+              </div>
+              <div v-if="loading && !activity.length" class="empty"><div class="empty-icon">◌</div><p class="caption">Loading…</p></div>
+              <div v-else-if="!activity.length" class="empty"><div class="empty-icon">📭</div><p class="caption">Nothing yet. Create a post to see it here.</p></div>
+              <ul v-else class="timeline">
+                <li v-for="ev in activity" :key="ev.kind + ev.id">
+                  <span class="badge" :class="ev.kind === 'post' ? 'badge-accent' : 'badge-info'">{{ ev.kind }}</span>
+                  <span class="grow truncate">{{ ev.title }}</span>
+                  <span class="caption">{{ timeAgo(ev.at) }}</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Posts -->
+          <div data-panel="posts" hidden>
+            <div class="table-card">
+              <div class="table-toolbar">
+                <input class="input grow" placeholder="Filter posts…" aria-label="Filter posts" data-table-filter="#posts-table">
+                <button class="btn btn-sm btn-primary" :disabled="!user" @click="openNewPost"
+                        :data-tip="user ? '' : 'Sign in to create a post'">New post</button>
+              </div>
+              <div class="table-wrap">
+                <table id="posts-table">
+                  <thead>
+                    <tr>
+                      <th data-sort>Title</th>
+                      <th data-sort>Status</th>
+                      <th data-sort>Lang</th>
+                      <th data-sort>Created</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="p in posts" :key="p.id">
+                      <td><strong>{{ p.title }}</strong><div class="caption truncate">{{ p.slug }}</div></td>
+                      <td><span class="badge" :class="badgeFor(p.status)">{{ p.status || 'draft' }}</span></td>
+                      <td>{{ p.lang || '—' }}</td>
+                      <td :data-sort-value="p.created">{{ timeAgo(p.created) }}</td>
+                      <td><button class="btn btn-sm btn-ghost" @click="view(p)">View</button></td>
+                    </tr>
+                    <tr class="table-empty-row" v-if="!loading && !posts.length"><td colspan="5">No posts yet.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <p class="caption">
+              Guest sees published posts; signed in you also see your own drafts — enforced by the
+              collection <strong>listRule</strong>, not by this page.
+            </p>
+          </div>
+
+          <!-- Schema -->
+          <div data-panel="schema" hidden>
+            <div class="card">
+              <div class="card-header">
+                <div><strong>Live schema</strong> <span class="caption">— read from the running app</span></div>
+                <button class="btn btn-sm btn-ghost" @click="loadSchema" :disabled="schemaLoading">Reload</button>
+              </div>
+              <p class="caption">
+                Generated from <code>$app.findAllCollections()</code> at request time, so it always
+                matches the database. Same source as <code>/openapi.json</code>.
+              </p>
+            </div>
+
+            <div v-for="c in schema" :key="c.name" class="card">
+              <div class="card-header">
+                <div class="row">
+                  <strong>{{ c.name }}</strong>
+                  <span class="badge" :class="c.type === 'auth' ? 'badge-info' : 'badge-accent'">{{ c.type }}</span>
+                </div>
+                <span class="caption">{{ c.fields.length }} fields</span>
+              </div>
+
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>Field</th><th>Type</th><th>Flags</th></tr></thead>
+                  <tbody>
+                    <tr v-for="f in c.fields" :key="f.name">
+                      <td><code>{{ f.name }}</code></td>
+                      <td><code>{{ f.type }}</code></td>
+                      <td>
+                        <span v-if="f.required" class="badge badge-warning">required</span>
+                        <span v-if="f.system" class="badge">system</span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <details>
+                <summary>API rules <span class="caption">(access control)</span></summary>
+                <div class="table-wrap">
+                  <table>
+                    <thead><tr><th>Action</th><th>Exposure</th><th>Rule</th></tr></thead>
+                    <tbody>
+                      <tr v-for="(rule, action) in c.rules" :key="action">
+                        <td>{{ action }}</td>
+                        <td><span class="badge" :class="ruleBadge(c.exposure[action])">{{ c.exposure[action] }}</span></td>
+                        <td><code>{{ rule || '—' }}</code></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <p class="caption">Exposure is derived from the rule: <code>""</code> = public, <code>null</code> = superuser only, expression = row-filtered.</p>
+              </details>
+
+              <details v-if="c.indexes.length">
+                <summary>Indexes <span class="caption">({{ c.indexes.length }})</span></summary>
+                <pre v-for="(ix, i) in c.indexes" :key="i" data-lang="sql"><code>{{ ix }}</code></pre>
+              </details>
+            </div>
+          </div>
+
+          <!-- API -->
+          <div data-panel="api" hidden>
+            <div class="card">
+              <div class="card-header">
+                <div><strong>Auto-generated API</strong> <span class="caption">— OpenAPI 3.1</span></div>
+                <div class="row">
+                  <a class="btn btn-sm" href="/openapi.json" target="_blank" rel="noopener">openapi.json</a>
+                  <a class="btn btn-sm btn-primary" href="/docs/">Full reference →</a>
+                </div>
+              </div>
+              <p class="caption">
+                Every collection exposes the same five REST verbs plus realtime (SSE) and batch.
+                The interactive reference is rendered by Scalar from this live spec — nothing to keep
+                in sync by hand.
+              </p>
+              <pre data-lang="bash"><code># sign in, then call a protected route
+TOKEN=$(curl -s -X POST {{ baseUrl }}/api/collections/users/auth-with-password \
+  -H "Content-Type: application/json" \
+  -d '{"identity":"demo@local.local","password":"demo12345678"}' | jq -r .token)
+
+curl -s {{ baseUrl }}/api/me -H "Authorization: $TOKEN"
+
+# subscribe to changes (SSE)
+curl -N "{{ baseUrl }}/api/realtime?clientId=1&subscriptions=posts"</code></pre>
+            </div>
+
+            <div class="table-card">
+              <div class="table-toolbar"><input class="input grow" placeholder="Filter endpoints…" aria-label="Filter endpoints" data-table-filter="#routes-table"></div>
+              <div class="table-wrap">
+                <table id="routes-table">
+                  <thead><tr><th>Method</th><th>Path</th><th></th></tr></thead>
+                  <tbody>
+                    <tr v-for="r in routes" :key="r.method + r.path">
+                      <td><span class="badge" :class="methodBadge(r.method)">{{ r.method }}</span></td>
+                      <td><code>{{ r.path }}</code></td>
+                      <td><a class="btn btn-sm btn-ghost" :href="r.path" target="_blank" rel="noopener">Try</a></td>
+                    </tr>
+                    <tr v-for="r in collectionRoutes" :key="r.method + r.path">
+                      <td><span class="badge" :class="methodBadge(r.method)">{{ r.method }}</span></td>
+                      <td><code>{{ r.path }}</code></td>
+                      <td><a class="btn btn-sm btn-ghost" :href="r.path" target="_blank" rel="noopener">Try</a></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <footer class="caption app-footer">
+          Served by one Go binary ·
+          <a href="/healthz">/healthz</a> ·
+          <a href="/llms.txt">llms.txt</a> ·
+          <a href="/openapi.json">OpenAPI</a> ·
+          <a href="/docs/">Reference</a>
+        </footer>
+      </main>
+    </div>
+
+    <!-- ── Command palette (⌘K) ──────────────────────────────────────── -->
+    <dialog class="palette" id="cmd" aria-label="Command palette">
+      <div class="palette-search">
+        <span aria-hidden="true">⌕</span>
+        <input class="palette-input" placeholder="Jump to…" aria-label="Command palette search">
+        <span class="kbd">esc</span>
+      </div>
+      <div class="palette-list">
+        <div class="palette-section">Navigate</div>
+        <div class="palette-item" data-action="nav" @click="go('overview')">Overview</div>
+        <div class="palette-item" data-action="nav" @click="go('posts')">Posts</div>
+        <div class="palette-item" data-action="nav" @click="go('schema')">Schema</div>
+        <div class="palette-item" data-action="nav" @click="go('api')">API</div>
+        <div class="palette-section">Appearance</div>
+        <div class="palette-item" data-action="theme">Toggle light / dark</div>
+        <div class="palette-item" data-action="palette" data-value="indigo">Palette · indigo</div>
+        <div class="palette-item" data-action="palette" data-value="ember">Palette · ember</div>
+        <div class="palette-item" data-action="palette" data-value="forest">Palette · forest</div>
+        <div class="palette-section">Links</div>
+        <div class="palette-item"><a href="/docs/">API reference</a></div>
+        <div class="palette-item"><a href="/_/" target="_blank" rel="noopener">Admin dashboard</a></div>
+        <div class="palette-empty">No matches</div>
+      </div>
+      <div class="palette-footer">
+        <div class="palette-keys"><kbd class="kbd">↑</kbd><kbd class="kbd">↓</kbd> navigate · <kbd class="kbd">↵</kbd> open</div>
+      </div>
+    </dialog>
+
+    <!-- ── Sign in ───────────────────────────────────────────────────── -->
+    <dialog class="modal" id="auth" aria-label="Sign in">
+      <div class="modal-title">Sign in</div>
+      <form @submit.prevent="login">
+        <div class="field">
+          <label class="label" for="auth-identity">Email</label>
+          <input id="auth-identity" type="email" v-model="form.identity" placeholder="demo@local.local" required autocomplete="username">
+        </div>
+        <div class="field">
+          <label class="label" for="auth-pass">Password</label>
+          <input id="auth-pass" type="password" v-model="form.password" placeholder="demo12345678" required autocomplete="current-password">
+          <span class="hint">Seeded demo user, or create your own in the Admin dashboard.</span>
+        </div>
+        <div class="row form-actions">
+          <button type="submit" class="btn btn-primary" :disabled="busy">{{ busy ? 'Signing in…' : 'Sign in' }}</button>
+          <button type="button" data-modal-close>Cancel</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- ── Create post ───────────────────────────────────────────────── -->
+    <dialog class="modal" id="post" aria-label="New post">
+      <div class="modal-title">New post</div>
+      <form @submit.prevent="createPost">
+        <div class="field">
+          <label class="label" for="p-title">Title</label>
+          <input id="p-title" v-model="newPost.title" placeholder="Hello world" required>
+          <span class="hint">The slug is derived server-side by a hook.</span>
+        </div>
+        <div class="field">
+          <label class="label" for="p-status">Status</label>
+          <select id="p-status" v-model="newPost.status">
+            <option value="draft">draft</option>
+            <option value="published">published</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="label" for="p-body">Body</label>
+          <textarea id="p-body" v-model="newPost.body" rows="5" placeholder="Write something…"></textarea>
+        </div>
+        <div class="row form-actions">
+          <button type="submit" class="btn btn-primary" :disabled="busy">{{ busy ? 'Saving…' : 'Create' }}</button>
+          <button type="button" data-modal-close>Cancel</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- ── View post ─────────────────────────────────────────────────── -->
+    <dialog class="modal" id="view" aria-label="Post">
+      <div class="modal-title">{{ current?.title }}</div>
+      <p class="caption">
+        <code>{{ current?.slug }}</code>
+        <span v-if="current?.lang"> · {{ current.lang }}</span>
+        <span class="badge" :class="badgeFor(current?.status)">{{ current?.status }}</span>
+      </p>
+      <p class="post-body">{{ current?.body || '—' }}</p>
+      <div class="row form-actions"><button type="button" data-modal-close>Close</button></div>
+    </dialog>
+  </div>
+
+  <script src="/vendor/pocketbase.umd.js"></script>
+  <script src="/vendor/vue.global.prod.js"></script>
+  <script src="/vendor/ohno/ohno.min.js"></script>
+  <script src="/assets/app.js"></script>
+</body>
+</html>
