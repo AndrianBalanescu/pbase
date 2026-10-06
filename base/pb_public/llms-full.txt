@@ -510,8 +510,9 @@ pb.files.getURL(record, record.cover, { thumb: '400x300' });  // thumbnails
 3. **New base collections get no `created`/`updated`.** Declare `autodate` fields yourself.
 4. **`record.get("dateField")` returns a `DateTime` object**, truthy even when empty.
    Use `getString()` or `getDateTime().isZero()`.
-5. **Dates persist as `"YYYY-MM-DD HH:MM:SS.sssZ"`** (a space, not ISO's `T`). An ISO
-   string silently fails to persist.
+5. **Dates persist as `"YYYY-MM-DD HH:MM:SS.sssZ"`** (a space, not ISO's `T`). An API write
+   with a `T` string is accepted and normalized server-side, but a `T` string inside a `filter`
+   query silently matches nothing (200, empty list) — stick to space format for writes and filters.
 6. **A handler cannot see file/module top-level scope.** Each handler runs in its own pooled VM.
    Referencing module scope throws `ReferenceError: <name> is not defined` at request time (the
    router returns a bare 400). `require(`${__hooks}/lib/x.js`)` **inside** the handler — a function
